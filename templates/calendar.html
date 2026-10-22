@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar · LeafTutor{% endblock %}
+{% block navbar_subtitle %}Calendar{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+<style>
+  /* ── toolbar (Today ‹ › Month Year) ── */
+  .cal-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .cal-title { margin: 0 0 8px; font-size: 22px; font-weight: 600; }
+  .cal-nav { display: inline-flex; gap: 4px; }
+
+  /* ── main grid + right sidebar ── */
+  .cal-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+  @media (max-width: 800px) { .cal-layout { grid-template-columns: 1fr; } }
+
+  /* ── month grid: thin borders, day number top-right ── */
+  .cal-grid {
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0;
+    border-top: 1px solid var(--lt-border); border-left: 1px solid var(--lt-border);
+  }
+  .cal-dow {
+    padding: 6px 8px; font-size: 12px; font-weight: 600; text-align: center;
+    border-right: 1px solid var(--lt-border); border-bottom: 1px solid var(--lt-border);
+  }
+  .cal-cell {
+    display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+    min-height: 104px; padding: 4px; text-align: left; background: transparent;
+    border: 0; border-right: 1px solid var(--lt-border); border-bottom: 1px solid var(--lt-border);
+    border-radius: 0; position: relative; cursor: pointer; font: inherit; color: inherit;
+  }
+  .cal-cell.out .cal-num,
+  .cal-cell.out .cal-chip { opacity: .45; }
+  .cal-cell.today { background: color-mix(in srgb, var(--lt-border) 35%, transparent); }
+  .cal-cell.selected { outline: 2px solid var(--lt-text-tertiary); outline-offset: -2px; }
+  .cal-num { align-self: flex-end; font-size: 12px; padding: 0 4px; }
+
+  /* ── event bars (icon, short time, title) ── */
+  .cal-chip {
+    display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px;
+    font-size: 12px; line-height: 1.3; white-space: nowrap; overflow: hidden;
+    color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
+    border-left: 3px solid var(--c);
+  }
+  .cal-chip-time { opacity: .8; flex: none; }
+  .cal-chip-text { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .cal-chip.done .cal-chip-text { text-decoration: line-through; opacity: .7; }
+  .cal-more { font-size: 11px; opacity: .7; padding-left: 4px; }
+
+  /* ── sidebar: Calendars list with checkboxes ── */
+  .cal-side h3 { margin: 0 0 8px; font-size: 16px; }
+  .cal-side-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+  .cal-side-list li { display: flex; align-items: center; gap: 6px; }
+  .cal-check {
+    flex: 1; display: flex; align-items: center; gap: 8px; text-align: left;
+    background: none; border: 0; padding: 4px; cursor: pointer; font: inherit; color: inherit;
+  }
+  .cal-box { width: 16px; height: 16px; border-radius: 3px; flex: none; background: var(--c); border: 2px solid var(--c); }
+  .cal-check.off .cal-box { background: transparent; }
+
+  /* per-course color picker */
+  .cal-color-pick { display: inline-flex; cursor: pointer; }
+  .cal-color-pick input[type="color"] {
+    width: 24px; height: 24px; padding: 0; border: 1px solid var(--lt-border);
+    border-radius: 50%; background: none; cursor: pointer; overflow: hidden;
+    -webkit-appearance: none; appearance: none;
+  }
+  .cal-color-pick input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  .cal-color-pick input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+  .cal-color-pick input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
+  .cal-reset-colors { font-size: 12px; padding: 4px 10px; border-radius: 999px; }
+  .cal-side .cal-usage-toggle { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+</style>
+{% endblock %}
+
+{#
+  Route supplies:
+    events        list of dicts:
+                  { "title": "Lab 3 due", "date": "2026-10-20", "time": "11:59 PM",
+                    "course": "CS 101", "type": "assignment|exam|event", "color": "#3b82f6" (optional),
+                    "done": true (optional, strikes the event through) }
+                  Only `title` and `date` (YYYY-MM-DD) are required.
+    usage         dict { "2026-10-14": 12, ... } = distinct active students per day (instructors only)
+    is_instructor bool — shows the "tutor usage" layer
+#}
+{% block content %}
+<div class="page-scroll" x-data="calendarPage()" x-cloak>
+  <script type="application/json" id="cal-events">{{ (events or [])|tojson }}</script>
+  <script type="application/json" id="cal-usage">{{ (usage or {})|tojson }}</script>
+  <script type="application/json" id="cal-config">{{ ({"isInstructor": true if is_instructor else false})|tojson }}</script>
+
+  <div class="page-inner">
+    <div class="cal-toolbar">
+      <button type="button" class="btn-ghost" @click="today()">Today</button>
+      <h2 class="cal-title" x-text="monthLabel"></h2>
+      <div class="cal-nav">
+        <button type="button" class="btn-ghost" @click="prev()" aria-label="Previous month">‹</button>
+        <button type="button" class="btn-ghost" @click="next()" aria-label="Next month">›</button>
+      </div>
+    </div>
+    
+    <div class="cal-layout">
+      <!-- Month grid -->
+      <div class="cal-grid" role="grid" aria-label="Calendar">
+        <template x-for="d in weekdays" :key="d">
+          <div class="cal-dow" role="columnheader" x-text="d"></div>
+        </template>
+
+        <template x-for="cell in cells" :key="cell.iso">
+          <button type="button" class="cal-cell" role="gridcell"
+                  :class="{ out: !cell.inMonth, today: cell.isToday, selected: cell.iso === selected }"
+                  :data-level="showUsage ? cell.level : 0"
+                  :title="showUsage ? (cell.usage + ' active student(s)') : ''"
+                  :aria-label="cell.label
+                    + (cell.events.length ? ', ' + cell.events.length + ' event(s)' : '')
+                    + (showUsage && cell.usage ? ', ' + cell.usage + ' active student(s)' : '')"
+                  @click="selected = cell.iso">
+            <span class="cal-num" x-text="cell.day"></span>
+            <template x-for="(e, i) in cell.events.slice(0, 3)" :key="i">
+              <span class="cal-chip" :class="[ 'type-' + (e.type || 'event'), { done: e.done } ]"
+                    :style="{ '--c': colorFor(e.course, e.color) }" :title="e.title">
+                <span class="cal-chip-icon" aria-hidden="true" x-text="iconFor(e.type)"></span>
+                <span class="cal-chip-time" x-text="shortTime(e.time)"></span>
+                <span class="cal-chip-text" x-text="e.title"></span>
+              </span>
+            </template>
+            <span class="cal-more" x-show="cell.events.length > 3"
+                  x-text="'+' + (cell.events.length - 3) + ' more'"></span>
+            <span class="cal-usage-count" x-show="showUsage && cell.usage > 0" x-text="cell.usage"></span>
+          </button>
+        </template>
+      </div>
+
+      <!-- Sidebar: course list / filter / colors / usage toggle -->
+      <aside class="cal-side">
+        <h3>Calendars</h3>
+        <ul class="cal-side-list">
+          <template x-for="c in courses" :key="c">
+            <li>
+              <button type="button" class="cal-check" :class="{ off: hidden[c] }"
+                      :style="{ '--c': colorFor(c, explicitFor(c)) }"
+                      :aria-pressed="!hidden[c]" @click="toggleCourse(c)">
+                <span class="cal-box"></span>
+                <span x-text="c"></span>
+              </button>
+              <label class="cal-color-pick" :title="'Change color for ' + c">
+                <input type="color" :value="hex(colorFor(c, explicitFor(c)))"
+                       :aria-label="'Calendar color for ' + c"
+                       @input="setColor(c, $event.target.value)">
+              </label>
+            </li>
+          </template>
+        </ul>
+        <button type="button" class="btn-ghost cal-reset-colors"
+                x-show="Object.keys(custom).length" @click="resetColors()">Reset colors</button>
+        <label class="cal-usage-toggle" x-show="isInstructor">
+          <input type="checkbox" x-model="showUsage"> Show tutor usage
+        </label>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top: var(--g);">
+      <h2 x-text="selectedLabel"></h2>
+      <div class="cal-day-list">
+        <template x-for="(e, i) in selectedEvents" :key="i">
+          <div class="cal-event" :style="{ '--c': colorFor(e.course, e.color) }">
+            <div class="cal-event-time" x-text="e.time || 'All day'"></div>
+            <div>
+              <div class="cal-event-title">
+                <span aria-hidden="true" x-text="iconFor(e.type)"></span>
+                <span x-text="e.title"></span>
+              </div>
+              <div class="cal-event-course" x-show="e.course" x-text="e.course"></div>
+            </div>
+          </div>
+        </template>
+        <div class="cal-usage-line" x-show="selectedEvents.length === 0">Nothing scheduled.</div>
+        <p class="cal-usage-line" x-show="showUsage"
+           x-text="(usage[selected] || 0) + ' active student(s) used the tutor this day'"></p>
+      </div>
+    </section>
+
+    <!-- Busiest days (instructors, when the usage layer is on) -->
+    <section class="panel" x-show="showUsage && busiest.length">
+      <h2>Busiest tutor days this month</h2>
+      <div class="cal-day-list">
+        <template x-for="b in busiest" :key="b.iso">
+          <button type="button" class="cal-busy-row" @click="selected = b.iso">
+            <span x-text="b.label"></span>
+            <strong x-text="b.count + ' student(s)'"></strong>
+          </button>
+        </template>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Registered before Alpine starts (Alpine loads last in base.html).
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('calendarPage', () => ({
+      weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      // Mid-tones that stay readable on light and dark themes.
+      palette: ['#3b82f6', '#f59e0b', '#10b981', '#a855f7', '#ef4444', '#14b8a6', '#ec4899', '#84cc16'],
+      view: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      selected: null,
+      events: [],
+      usage: {},
+      hidden: {},
+      custom: {},          // your own color per course, saved in this browser
+      showUsage: false,
+      isInstructor: false,
+
+      init() {
+        const read = (id, fallback) => {
+          try { return JSON.parse(document.getElementById(id).textContent) || fallback; }
+          catch (e) { return fallback; }
+        };
+        this.events = read('cal-events', []);
+        this.usage = read('cal-usage', {});
+        this.isInstructor = !!(read('cal-config', {}).isInstructor);
+        this.loadColors();
+        this.selected = this.iso(new Date());
+        if (this.isInstructor) this.loadUsage();
+      },
+
+      iso(d) {
+        const p = n => String(n).padStart(2, '0');
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+      },
+
+      // ── course colors ──
+      // Same course always gets the same color; an explicit e.color wins.
+      colorFor(course, explicit) {
+        if (course && this.custom[course]) return this.custom[course];   // your pick wins
+        if (explicit) return explicit;
+        let h = 0;
+        for (const ch of (course || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+        return course ? this.palette[h % this.palette.length] : 'var(--lt-text-tertiary)';
+      },
+      // ── user-chosen course colors (per browser) ──
+      explicitFor(course) {
+        const e = this.events.find(ev => ev.course === course && ev.color);
+        return e ? e.color : null;
+      },
+      hex(v) { return /^#[0-9a-f]{6}$/i.test(v || '') ? v : '#3b82f6'; },   // <input type=color> needs #rrggbb
+      loadColors() {
+        try {
+          const saved = JSON.parse(localStorage.getItem('lt-cal-colors') || '{}');
+          const ok = {};
+          for (const [k, v] of Object.entries(saved || {})) if (/^#[0-9a-f]{6}$/i.test(v)) ok[k] = v;
+          this.custom = ok;
+        } catch (e) { this.custom = {}; }
+      },
+      saveColors() {
+        try { localStorage.setItem('lt-cal-colors', JSON.stringify(this.custom)); } catch (e) { /* private mode */ }
+      },
+      setColor(course, value) {
+        if (!/^#[0-9a-f]{6}$/i.test(value || '')) return;
+        this.custom = { ...this.custom, [course]: value };   // new object so Alpine re-renders
+        this.saveColors();
+      },
+      resetColors() { this.custom = {}; this.saveColors(); },
+
+      iconFor(type) {
+        return type === 'exam' ? '★' : type === 'assignment' ? '⚑' : '•';
+      },
+      // "11:59 PM" -> "11:59p" (Canvas style)
+      shortTime(t) {
+        if (!t) return '';
+        const m = /^(\d{1,2}):(\d{2})\s*([ap])m?$/i.exec(String(t).trim());
+        return m ? m[1] + ':' + m[2] + m[3].toLowerCase() : t;
+      },
+      get courses() {
+        return [...new Set(this.events.map(e => e.course).filter(Boolean))].sort();
+      },
+      toggleCourse(c) {
+        // Replace the object so Alpine re-renders for brand-new keys.
+        this.hidden = { ...this.hidden, [c]: !this.hidden[c] };
+      },
+
+      // ── events ──
+      eventsOn(iso) {
+        return this.events.filter(e => e.date === iso && !this.hidden[e.course]);
+      },
+
+      // ── usage heat ──
+      get maxUsage() { return Math.max(1, ...Object.values(this.usage).map(Number)); },
+      level(iso) {
+        const n = Number(this.usage[iso] || 0);
+        return n <= 0 ? 0 : Math.min(4, Math.ceil((n / this.maxUsage) * 4));
+      },
+      async loadUsage() {
+        if (!this.isInstructor) return;
+        const y = this.view.getFullYear(), m = this.view.getMonth() + 1;
+        try {
+          const res = await fetch('/api/calendar/usage?year=' + y + '&month=' + m,
+                                  { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+          if (!res.ok) return;
+          const data = await res.json();
+          this.usage = Object.assign({}, this.usage, (data && data.usage) || {});
+        } catch (e) { /* keep whatever we already have */ }
+      },
+      get busiest() {
+        const prefix = this.view.getFullYear() + '-' + String(this.view.getMonth() + 1).padStart(2, '0');
+        return Object.entries(this.usage)
+          .filter(([iso, n]) => iso.startsWith(prefix) && Number(n) > 0)
+          .sort((a, b) => Number(b[1]) - Number(a[1]))
+          .slice(0, 3)
+          .map(([iso, n]) => {
+            const [y, m, d] = iso.split('-').map(Number);
+            return {
+              iso, count: Number(n),
+              label: new Date(y, m - 1, d).toLocaleDateString(undefined,
+                { weekday: 'long', month: 'long', day: 'numeric' }),
+            };
+          });
+      },
+
+      // ── calendar grid ──
+      get monthLabel() {
+        return this.view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      },
+
+      // 6 weeks x 7 days, starting on the Sunday on/before the 1st
+      get cells() {
+        const y = this.view.getFullYear(), m = this.view.getMonth();
+        const start = new Date(y, m, 1 - new Date(y, m, 1).getDay());
+        const todayIso = this.iso(new Date());
+        const out = [];
+        for (let i = 0; i < 42; i++) {
+          const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+          const iso = this.iso(d);
+          out.push({
+            iso,
+            day: d.getDate(),
+            inMonth: d.getMonth() === m,
+            isToday: iso === todayIso,
+            label: d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
+            events: this.eventsOn(iso),
+            usage: Number(this.usage[iso] || 0),
+            level: this.level(iso),
+          });
+        }
+        return out;
+      },
+
+      get selectedEvents() { return this.selected ? this.eventsOn(this.selected) : []; },
+      get selectedLabel() {
+        if (!this.selected) return '';
+        const [y, m, d] = this.selected.split('-').map(Number);
+        return new Date(y, m - 1, d).toLocaleDateString(undefined,
+          { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      },
+
+      prev()  { this.view = new Date(this.view.getFullYear(), this.view.getMonth() - 1, 1); this.loadUsage(); },
+      next()  { this.view = new Date(this.view.getFullYear(), this.view.getMonth() + 1, 1); this.loadUsage(); },
+      today() {
+        const t = new Date();
+        this.view = new Date(t.getFullYear(), t.getMonth(), 1);
+        this.selected = this.iso(t);
+        this.loadUsage();
+      },
+    }));
+  });
+</script>
+{% endblock %}

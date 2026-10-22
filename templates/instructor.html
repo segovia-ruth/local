@@ -1,0 +1,1171 @@
+{% extends "base.html" %}
+{# TA mode: the same page served from /ta/<uuid> with a `panel` capability object.
+   Setting `anon` hides the navbar profile + logout (base.html) — a TA has no /api/me
+   identity, and the logout link's session.clear() would kill a coexisting login. #}
+{% set is_ta = panel is defined and panel and panel.mode == 'ta' %}
+{% set anon = is_ta %}
+{% block title %}{{ 'Assistant' if is_ta else 'Instructor' }} — LeafTutor{% endblock %}
+{% block body_class %}instructor-page{% endblock %}
+
+{% block extra_head %}
+<!-- Capability object for the Alpine store (instructor mode when served at /instructor).
+     In TA mode every fetch carries X-LT-Actor: ta so the backend resolves the TA
+     principal even when an instructor is logged in in the same browser. -->
+<script>
+  window.LT_PANEL = {{ (panel if is_ta else {"mode": "instructor"}) | tojson }};
+  (function () {
+    if (window.LT_PANEL.mode !== 'ta') return;
+    var _fetch = window.fetch.bind(window);
+    window.fetch = function (url, opts) {
+      opts = opts || {};
+      var h = new Headers(opts.headers || {});
+      h.set('X-LT-Actor', 'ta');
+      opts.headers = h;
+      return _fetch(url, opts);
+    };
+  })();
+</script>
+<!-- Course mode: /instructor?class=<id>[&view=assignments|roster] (opened from the Courses page).
+     Flags <html> before first paint so the full dashboard never flashes. -->
+<script>
+  (function () {
+    var p = new URLSearchParams(location.search);
+    if (!p.get('class') || (window.LT_PANEL && window.LT_PANEL.mode === 'ta')) return;
+    document.documentElement.classList.add('course-mode',
+      p.get('view') === 'roster' ? 'cv-roster' : 'cv-assignments');
+    // ?class=<id>&assignment=<id>: seed the store's own "last accessed" cookie; store.init()
+    // then restores exactly that class + assignment (restoreLastAccessed) with no race.
+    if (p.get('assignment')) {
+      document.cookie = 'inst_last_asn=' + encodeURIComponent(JSON.stringify(
+        { classId: p.get('class'), asnId: p.get('assignment') })) + '; path=/; SameSite=Lax';
+    }
+  })();
+</script>
+<style>
+  .sidebar-asn-due { font-size: 11px; max-width: 118px; padding: 2px 4px; }
+
+  /* Course pages (Assignments / Roster & audit): one centered column.
+     Root cause of the left-hugging layout: .main-layout is a CSS grid with columns
+     "auto 1fr". With the sidebar hidden in course mode, .container lands in the narrow
+     `auto` column. Give it a single full-width column, then cap + center it. */
+  .course-mode .main-layout { grid-template-columns: minmax(0, 1fr); }
+  .course-mode .main-layout > .container {
+    width: 100%;
+    max-width: 1000px;      /* same as the Courses / Calendar pages; change to taste */
+    justify-self: center;
+    padding: 0;
+  }
+  .course-mode #rosterAssignSplit.lt-split { padding-right: 0; }
+  .course-bar { display: none; }
+  .course-mode .course-bar {
+    display: flex; align-items: center; gap: 16px; height: 56px; box-sizing: border-box;
+    padding: 0 var(--g); background: var(--lt-bg-container);
+    border-bottom: 1px solid var(--lt-border-secondary);
+  }
+  .course-back { color: var(--lt-text-secondary); text-decoration: none; white-space: nowrap; }
+  .course-back:hover { color: var(--lt-primary); }
+  .course-bar-title { font-weight: 600; color: var(--lt-text); min-width: 0; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .course-tabs { display: flex; gap: 4px; }
+  .course-tab { padding: 6px 14px; border-radius: var(--lt-radius); text-decoration: none;
+    color: var(--lt-text-secondary); font-weight: 500; }
+  .course-tab:hover { background: var(--lt-fill-tertiary); color: var(--lt-text); }
+  .course-tab.active { background: var(--lt-primary-bg); color: var(--lt-primary-active); }
+
+  .course-mode .main-layout { height: calc(100vh - var(--nav-h) - 56px); }
+  /* Left column becomes "this course's assignments": hide class header + other classes */
+  .course-mode .sidebar-header,
+  .course-mode .class-item-header { display: none !important; }
+  .course-mode #classTabList .class-sidebar-item:not(.active) { display: none; }
+  .course-mode .class-asn-dropdown { display: block !important; }
+  /* Course mode: hide the left sidebar (class + assignment list) */
+  .course-mode .sidebar { display: none !important; }
+  /*.course-mode .sidebar { width: 280px !important; min-width: 280px !important; } */
+  .course-mode .sidebar.collapsed .project-list { display: block; }
+  /* Assignments view = assignment panel only (Files | Tutoring | Audit) */
+  .course-mode.cv-assignments #rosterSection,
+  .course-mode.cv-assignments .lt-handle,
+  .course-mode.cv-assignments .roster-collapse-btn { display: none !important; }
+  .course-mode.cv-assignments #assignSection { flex: 1 1 100% !important; }
+
+  /* Roster & audit view: no assignment panel */
+  .course-mode.cv-roster #assignSection,
+  .course-mode.cv-roster .asn-tab-bar { display: none !important; }
+  .course-mode.cv-roster #rosterSection { flex: 1 1 100% !important; }
+  .course-mode.cv-roster .lt-handle,
+  .course-mode.cv-roster .roster-collapse-btn { display: none !important; }
+</style>
+
+<!-- Syntax highlighting for the file-content editors (light theme scoped in app.css) -->
+<script src="{{ static_v('vendor/highlight/highlight.min.js') }}"></script>
+<!-- QR share for tutoring links: vendored generator + LT.qr popover/overlay -->
+<link rel="stylesheet" href="{{ static_v('css/qr.css') }}">
+<script src="{{ static_v('vendor/qrcode/qrcode.min.js') }}"></script>
+<script src="{{ static_v('js/core/qr.js') }}"></script>
+{% endblock %}
+
+{% block navbar_subtitle %}{{ ('Teaching Assistant — ' + panel.ta_name) if is_ta else 'Instructor Dashboard' }}{% endblock %}
+
+
+{% block content %}
+  <!-- Course bar (course mode only): back link, class name, page switch -->
+  <div class="course-bar"
+       x-data="{ cid: new URLSearchParams(location.search).get('class'),
+                 view: new URLSearchParams(location.search).get('view') === 'roster' ? 'roster' : 'assignments' }">
+    <a class="course-back" href="/courses">← Courses</a>
+    <div class="course-bar-title" x-text="$store.inst.currentClassName || 'Loading…'"></div>
+    <nav class="course-tabs" aria-label="Course pages">
+      <a class="course-tab" :class="{ active: view === 'assignments' }"
+         :href="'/instructor?class=' + encodeURIComponent(cid) + '&view=assignments'">Assignments</a>
+      <a class="course-tab" :class="{ active: view === 'roster' }"
+         :href="'/instructor?class=' + encodeURIComponent(cid) + '&view=roster'">Roster &amp; audit</a>
+    </nav>
+  </div>
+
+  <!-- Main layout: sidebar (classes) & resizable roster and assignments panels -->
+  <div class="main-layout" x-init="$store.inst.init()">
+    <!-- Sidebar = Classes -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 style="margin:0">Classes</h3>
+        <div class="sidebar-controls" style="display:flex;gap:8px;align-items:center;">
+          <button id="addClassBtn" class="add-project-btn" title="Create class" x-show="!$store.inst.isTA" @click="$store.inst.toggleClassCreate()">+</button>
+          <button @click="toggleSidebar()" class="collapse-btn" id="sidebarToggle" title="Collapse sidebar">←</button>
+        </div>
+      </div>
+
+      <!-- Inline create panel -->
+      <div id="classCreatePanel" class="card" x-show="$store.inst.classCreateOpen" x-cloak style="display:block; margin:10px 12px;">
+        <div class="row row-create">
+          <input id="clsName" placeholder="Class name" x-model="$store.inst.newClass.name" @keydown.enter.prevent="$store.inst.createClass()" />
+          <input id="clsTerm" placeholder="Term (e.g., Fall 2025)" x-model="$store.inst.newClass.term" @keydown.enter.prevent="$store.inst.createClass()" />
+          <button id="classCreateOk" class="btn small" @click="$store.inst.createClass()">OK</button>
+        </div>
+      </div>
+
+      <div class="project-list" id="classTabList" style="flex:1;min-height:0;overflow-y:auto;" x-cloak>
+        <template x-if="!$store.inst.classes.length">
+          <div class="muted" style="padding:12px 14px;">No classes yet. Click + to create one.</div>
+        </template>
+        <template x-for="c in $store.inst.sortedClasses" :key="c.id">
+          <div class="class-sidebar-item" :class="{ active: c.id === $store.inst.currentClassId, 'class-deactivated': c.is_active === false }" :data-id="c.id" data-card="class">
+            <div class="class-item-header" @click="$store.inst.selectClass(c.id, c.name)">
+              <div class="project-icon"
+                   :style="'width:28px;height:28px;border-radius:var(--lt-radius);font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:' + (c.is_active !== false ? 'var(--lt-primary-bg);color:var(--lt-primary)' : 'var(--lt-fill-secondary);color:var(--lt-text-tertiary)')"
+                   x-text="$store.inst.classInitials(c)"></div>
+              <div class="project-info" style="flex:1;min-width:0;">
+                <div class="class-name-row" style="display:flex;align-items:center;gap:2px;min-width:0;">
+                  <div class="project-name" :style="'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + (c.is_active === false ? 'color:#9ca3af;' : '')" x-text="c.name || 'Untitled Class'"></div>
+                  <button class="rename-btn class-rename-btn" title="Rename class" x-show="!$store.inst.isTA"
+                          @click.stop="startInlineEdit($el.closest('.class-name-row').querySelector('.project-name'), c.name || 'Untitled Class', v => $store.inst.renameClass(c, v))">✎</button>
+                </div>
+                <div class="class-term-row" style="display:flex;align-items:center;gap:2px;min-width:0;color:#6b7280;font-size:12px;">
+                  <div class="project-meta" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    <template x-if="c.is_active === false"><span class="class-deactivated-badge">Deactivated</span></template>
+                    <template x-if="c.is_active !== false"><span x-text="c.term || ''"></span></template>
+                  </div>
+                  <button class="rename-btn term-rename-btn" title="Update term" x-show="c.is_active !== false && !$store.inst.isTA"
+                          @click.stop="startInlineEdit($el.closest('.class-term-row').querySelector('.project-meta'), c.term || '', v => $store.inst.renameClassTerm(c, v))">✎</button>
+                </div>
+              </div>
+              <div class="class-btn-group">
+                <button :class="c.is_active !== false ? 'class-disable-btn' : 'class-activate-btn'"
+                        :title="c.is_active !== false ? 'Disable course (hide from students)' : 'Activate course'"
+                        x-show="!$store.inst.isTA"
+                        @click.stop="$store.inst.toggleClassActive(c)" x-text="c.is_active !== false ? 'Disable' : 'Activate'"></button>
+                <button class="class-disable-btn" title="Delete course permanently" style="color:#b91c1c;"
+                        x-show="!$store.inst.isTA"
+                        @click.stop="$store.inst.deleteClass(c)">Delete</button>
+                <button class="asn-toggle-btn" title="Show/hide assignments"
+                        @click.stop="$store.inst.toggleClassAsnDropdown(c.id)"
+                        x-text="$store.inst.sidebarExpandedClass === c.id ? 'Collapse' : 'Expand'"></button>
+              </div>
+            </div>
+
+            <!-- Assignment dropdown -->
+            <div class="class-asn-dropdown" :id="'asn-drop-' + c.id" x-show="$store.inst.sidebarExpandedClass === c.id" x-cloak>
+              <template x-if="$store.inst.sidebarAsn[c.id] && $store.inst.sidebarAsn[c.id].loading">
+                <div class="muted" style="padding:6px 8px;font-size:12px;">Loading…</div>
+              </template>
+              <template x-if="$store.inst.sidebarAsn[c.id] && $store.inst.sidebarAsn[c.id].error">
+                <div class="muted" style="padding:6px 8px;font-size:12px;">Error loading.</div>
+              </template>
+              <template x-if="$store.inst.sidebarAsn[c.id] && !$store.inst.sidebarAsn[c.id].loading && !$store.inst.sidebarAsn[c.id].error">
+                <div>
+                  <div class="sidebar-asn-list">
+                    <template x-if="!$store.inst.sidebarAsn[c.id].items.length">
+                      <div class="muted" style="padding:4px 6px;font-size:12px;">No assignments yet.</div>
+                    </template>
+                    <template x-for="a in $store.inst.sidebarAsn[c.id].items" :key="a.id">
+                      <div class="sidebar-asn-row">
+                        <span class="sidebar-asn-title" style="cursor:pointer;" title="Open file manager for this assignment"
+                              @click.stop="$store.inst.openAssignmentInstructor(a.id)" x-text="a.title"></span>
+                        <button class="rename-btn assignment-rename-btn" type="button" title="Rename assignment" aria-label="Rename assignment"
+                                x-show="$store.inst.canManageAssignments"
+                                @click.stop="startInlineEdit($el.closest('.sidebar-asn-row').querySelector('.sidebar-asn-title'), a.title, v => $store.inst.renameSidebarAsn(c.id, a, v))">✎</button>
+                        <button class="rename-btn assignment-delete-btn" type="button" title="Delete assignment" aria-label="Delete assignment" style="color:#b91c1c;"
+                                x-show="$store.inst.canManageAssignments"
+                                @click.stop="$store.inst.deleteSidebarAsn(c.id, a)">🗑</button>
+                        <input type="date" class="sidebar-asn-due" title="Due date" aria-label="Due date"
+                               x-show="$store.inst.canManageAssignments"
+                               :value="a.due_date || ''" @click.stop
+                               @change.stop="$store.inst.setSidebarAsnDue(c.id, a, $event.target.value, a.due_time)">
+                        <input type="time" class="sidebar-asn-due" title="Due time (optional)" aria-label="Due time"
+                               x-show="$store.inst.canManageAssignments && a.due_date"
+                               :value="a.due_time || ''" @click.stop
+                               @change.stop="$store.inst.setSidebarAsnDue(c.id, a, a.due_date, $event.target.value)">
+                        <label class="sidebar-asn-check" title="Active — students can see and work on this assignment">
+                          <input type="checkbox" :checked="!!a.active" :disabled="!$store.inst.canManageAssignments" @change.stop="$store.inst.toggleSidebarAsnActive(c.id, a, $event.target.checked)">
+                        </label>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="sidebar-asn-add-row" x-show="$store.inst.canManageAssignments">
+                    <input class="sidebar-asn-input" type="text" placeholder="New assignment…"
+                           x-model="$store.inst.sidebarAsn[c.id].newTitle" @keydown.enter.prevent="$store.inst.createSidebarAsn(c.id)">
+                    <button class="btn-icon" title="Add assignment" @click="$store.inst.createSidebarAsn(c.id)">+</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </aside>
+
+    <!-- Middle + Right = resizable split -->
+    <div class="container">
+      <div id="rosterAssignSplit" class="lt-split">
+        <!-- Assignments -->
+        <section class="card" id="assignSection" aria-label="Assignment">
+          <!-- Tab bar: Assignment Files | Tutoring | Audit -->
+          <div class="asn-tab-bar">
+            <button class="asn-tab" :class="{ active: $store.inst.asnTab === 'files' }" @click="$store.inst.switchAsnTab('files')">Assignment Files</button>
+            <button class="asn-tab" :class="{ active: $store.inst.asnTab === 'tutoring' }" @click="$store.inst.switchAsnTab('tutoring')">Tutoring</button>
+            <button class="asn-tab" :class="{ active: $store.inst.asnTab === 'audit' }" @click="$store.inst.switchAsnTab('audit')">Audit</button>
+          </div>
+
+          <!-- ── Tab 1: Assignment Files ── -->
+          <div id="asnFilesTabPanel" class="asn-tab-panel" x-show="$store.inst.asnTab === 'files'">
+            <div id="asnNoSelect" class="muted" style="padding:28px 16px;text-align:center;" x-show="!$store.inst.currentAsnId">
+              Select an assignment from the sidebar to manage its files.
+            </div>
+
+            <div class="card" id="asnFilesCard" x-show="$store.inst.currentAsnId" x-cloak style="display:block;">
+              <div class="section-header">
+                <h3 id="asnFilesTitle" style="margin:0" x-text="'Files — ' + ($store.inst.currentAsn ? $store.inst.currentAsn.title : '')"></h3>
+              </div>
+              <div style="margin:6px 0 2px;">
+                <label for="asnRemarks" style="display:block;font-size:12px;color:#6b7280;margin-bottom:3px;">Remarks — AI tutor context for this assignment</label>
+                <textarea id="asnRemarks" rows="2" x-model="$store.inst.remarks" :readonly="!$store.inst.canManageAssignments" style="width:100%;max-width:460px;box-sizing:border-box;resize:vertical;font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;" placeholder="e.g. This assignment tests recursion. Students should not use loops."></textarea>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:3px;">
+                  <button class="btn small" x-show="$store.inst.canManageAssignments" @click="$store.inst.saveRemarks()">Save Remarks</button>
+                  <span id="asnRemarksStatus" class="muted" style="font-size:12px;" x-text="$store.inst.remarksStatus"></span>
+                </div>
+              </div>
+              <div id="asnUploadZone" class="dropzone compact" :class="{ dragover: $store.inst._asnDrag }" x-show="$store.inst.canManageAssignments" style="margin:4px 0;cursor:pointer;" tabindex="0" role="button" aria-label="Drop files or click to browse"
+                   @click="if ($event.target === $el || !$event.target.closest('button')) $refs.asnFileInput.click()"
+                   @keydown.enter.prevent="$refs.asnFileInput.click()" @keydown.space.prevent="$refs.asnFileInput.click()"
+                   @dragover.prevent="$store.inst._asnDrag = true" @dragleave="$store.inst._asnDrag = false" @drop.prevent="$store.inst._asnDrag = false; $store.inst.onAsnDrop($event)">
+                <div id="asnDropHint">Drop files here or <span style="text-decoration:underline">browse</span></div>
+                <input id="asnFileInput" x-ref="asnFileInput" type="file" multiple style="display:none" @change="$store.inst.onAsnFilePicked($event)">
+                <div id="asnSelectedList" style="margin-top:6px;text-align:left;font-size:12px;color:#374151;">
+                  <template x-for="(f, i) in $store.inst.uploadPending" :key="i">
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;">
+                      <span>📄 <span x-text="f.name"></span> <span class="muted" x-text="'(' + $store.inst.asnFileSize(f) + ')'"></span></span>
+                      <button type="button" @click.stop="$store.inst.removeAsnPending(i)" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:14px;line-height:1;padding:0 2px;" title="Remove">✕</button>
+                    </div>
+                  </template>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;margin:3px 0 6px;flex-wrap:wrap;">
+                <button id="asnUploadBtn" class="btn small" x-show="$store.inst.canManageAssignments" :disabled="!$store.inst.uploadPending.length" @click="$store.inst.doAsnUpload()">Upload</button>
+                <a id="asnGenHintsBtn" class="btn small" x-show="$store.inst.canManageAssignments && $store.inst.currentAsnId" style="background:var(--lt-primary-bg);color:var(--lt-primary);border:1px solid var(--lt-primary-border);text-decoration:none;" :href="'/instructor/compile_workbench?assignment_id=' + encodeURIComponent($store.inst.currentAsnId || '')" target="_blank" rel="noopener" title="Open the project-compilation workbench in a new tab: files, analysis, commands, simulated input, compile and the tutoring context summary">&#9881; Generate Hints</a>
+                <span id="asnUploadStatus" class="muted" style="font-size:12px;" x-text="$store.inst.uploadStatus"></span>
+                <span id="asnHintStatus" class="muted" style="font-size:12px;" x-text="$store.inst.hintStatus"></span>
+              </div>
+
+              <div id="asnFilesList" class="list">
+                <template x-for="item in $store.inst.displayFiles" :key="item.kind === 'file' ? item.f.id : item.kind + (item.label || '')">
+                  <div>
+                    <!-- Remarks row -->
+                    <template x-if="item.kind === 'remarks'">
+                      <div class="item" style="display:flex;align-items:flex-start;gap:10px;background:var(--lt-primary-bg);border-left:3px solid var(--lt-primary-border);" :style="'opacity:' + (item.active ? 1 : 0.4)">
+                        <input type="checkbox" :checked="item.active" :disabled="!$store.inst.canManageAssignments" style="flex-shrink:0;margin-top:3px;cursor:pointer;"
+                               :title="item.active ? 'Included in AI context — click to exclude' : 'Excluded from AI context — click to include'"
+                               @change.stop="$store.inst.toggleRemarks($event.target.checked); item.active = $event.target.checked">
+                        <div class="grow"><div class="title" style="color:var(--lt-primary);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;">Remarks</div></div>
+                      </div>
+                    </template>
+                    <!-- Section header -->
+                    <template x-if="item.kind === 'header'">
+                      <div class="files-section-hdr" x-text="item.label"></div>
+                    </template>
+                    <!-- Empty -->
+                    <template x-if="item.kind === 'empty'">
+                      <div class="empty">No files yet for this assignment.</div>
+                    </template>
+                    <!-- File row -->
+                    <template x-if="item.kind === 'file'">
+                      <div class="item file-row"
+                           style="display:flex;align-items:center;gap:8px;background:var(--lt-primary-bg);border-left:3px solid var(--lt-primary-border);cursor:pointer;"
+                           :style="'opacity:' + (item.f.active !== false ? 1 : 0.45)"
+                           :title="$store.inst.fileRowTitle(item.f)" @click="$store.inst.openFileDetail(item.f.id)">
+                        <button type="button" class="file-star" :class="{ on: item.f.starred }"
+                                :title="item.f.starred ? 'Starred — pinned to top of its file type. Click to unstar.' : 'Click to star — pins to top of its file type.'"
+                                @click.stop="$store.inst.canManageAssignments && $store.inst.toggleStar(item.f)" x-text="item.f.starred ? '★' : '☆'"></button>
+                        <input type="checkbox" :checked="item.f.active !== false" :disabled="!$store.inst.canManageAssignments" style="flex-shrink:0;cursor:pointer;"
+                               :title="item.f.active !== false ? 'Included in AI context — click to exclude' : 'Excluded from AI context — click to include'"
+                               @click.stop @change.stop="$store.inst.toggleFile(item.f, $event.target.checked)">
+                        <div class="grow file-row-name"><span x-text="item.f.name"></span></div>
+                        <template x-if="!item.f.editable">
+                          <button type="button" class="file-dl" title="Download (skip preview)" @click.stop="$store.inst.downloadFile(item.f.id, item.f.name)">⤓</button>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+
+              <div id="asnFailedTasks" class="asn-failed-tasks" x-show="!$store.inst.isTA && $store.inst.failedTasks.length" x-cloak style="display:block;">
+                <div class="aft-head" x-text="'⚠ Failed AI tasks (' + $store.inst.failedTasks.length + ') — these did not complete after automatic retries'"></div>
+                <template x-for="t in $store.inst.failedTasks" :key="t.id">
+                  <div class="aft-row" :data-task="t.id">
+                    <div class="aft-info">
+                      <span class="aft-kind" x-text="t.kind_label || t.kind"></span>
+                      <span class="aft-title" x-text="t.title || ''"></span>
+                      <template x-if="$store.inst.taskErr(t)"><span class="aft-err" :title="t.error || ''" x-text="$store.inst.taskErr(t)"></span></template>
+                    </div>
+                    <button class="btn small aft-retry" :disabled="t._retrying" @click="$store.inst.retryAssignmentTask(t)" x-text="t._retrying ? 'Retrying…' : 'Retry'"></button>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div><!-- /asnFilesTabPanel -->
+
+          <!-- ── Tab 2: Tutoring ── -->
+          <div id="asnTutoringTabPanel" class="asn-tab-panel" x-show="$store.inst.asnTab === 'tutoring'" x-cloak>
+            <div id="asnTutoringNoSelect" class="muted" style="text-align:center;padding:28px 16px;" x-show="!$store.inst.currentAsnId">
+              Select an assignment from the sidebar to start a tutoring chat.
+            </div>
+
+            <div id="asnTutoringBody" x-show="$store.inst.currentAsnId" x-cloak>
+              <!-- Thread list view -->
+              <div id="tutThreadListView" x-show="$store.inst.tutView === 'list'">
+                <div class="section-header" style="display:flex;align-items:center;gap:8px;">
+                  <h3 id="asnTutoringTitle" style="margin:0;font-size:14px;flex:1;" x-text="'Tutoring' + ($store.inst.currentAsn ? ' — ' + $store.inst.currentAsn.title : '')"></h3>
+                  <button class="btn small icon" title="Refresh chats and links" aria-label="Refresh tutoring chats" @click="$store.inst.refreshTutoring()">⟳</button>
+                  <button class="btn small" id="tutNewChatBtn" @click="$store.inst.showTutNewChat()">+ Create tutoring chat</button>
+                </div>
+                <div id="tutNewChatRow" x-show="$store.inst.tutNewChatOpen" x-cloak style="display:flex;align-items:center;gap:6px;margin:8px 0;">
+                  <input id="tutNewChatName" placeholder="Name this chat (e.g. the student or the topic), then Enter"
+                         x-model="$store.inst.tutNewChatName" @keydown="$store.inst.onTutNewChatKey($event)"
+                         style="flex:1;font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;">
+                  <button class="btn small" @click="$store.inst.submitTutNewChat()">Create</button>
+                  <button class="btn small" @click="$store.inst.hideTutNewChat()">Cancel</button>
+                </div>
+                <p class="muted" style="font-size:12px;margin:6px 0 10px;">
+                  Paste a student's question and buggy source to spot the issue (typos, stray braces, logic), then answer the student. LeafTutor pinpoints problems directly here.
+                </p>
+                <div id="tutThreadList" class="list">
+                  <template x-if="$store.inst.tutThreadState === 'loading'"><div class="muted" style="padding:12px;">Loading…</div></template>
+                  <template x-if="$store.inst.tutThreadState === 'error'"><div class="muted" style="padding:12px;">Network error.</div></template>
+                  <template x-if="$store.inst.tutThreadState === 'empty'"><div class="muted" style="padding:12px;">No tutoring chats yet. Click “Create tutoring chat” to start one.</div></template>
+                  <template x-for="t in $store.inst.tutThreads" :key="t.id">
+                    <div class="list-item tut-thread-row" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 10px;" @click="$store.inst.openTutThread(t.id)">
+                      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="'💬 ' + t.title"></span>
+                      <span class="muted" style="font-size:10px;white-space:nowrap;border:1px solid var(--lt-border-secondary);border-radius:4px;padding:1px 5px;" x-show="$store.inst.isTA && $store.inst.ownsThread(t)" title="Created by you">yours</span>
+                      <span class="muted" style="font-size:11px;white-space:nowrap;" x-text="$store.inst.tutThreadMeta(t)"></span>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Anonymous links -->
+                <div id="tutAnonSection" style="margin-top:18px;border-top:1px solid #e5e7eb;padding-top:12px;">
+                  <div class="section-header" style="display:flex;align-items:center;gap:8px;">
+                    <h3 style="margin:0;font-size:14px;flex:1;">Anonymous links</h3>
+                    <button class="btn small" x-show="$store.inst.canManageAssignments" @click="$store.inst.showTutNewLink()">+ Create link</button>
+                  </div>
+                  <p class="muted" style="font-size:12px;margin:6px 0 8px;">
+                    Shareable no-login links (QR-friendly) students can use to start a tutoring chat for this assignment. Each chat is traceable below.
+                  </p>
+                  <div id="tutNewLinkRow" x-show="$store.inst.tutNewLinkOpen" x-cloak style="display:flex;flex-direction:column;gap:6px;margin:8px 0;padding:10px;border:1px solid #e5e7eb;border-radius:8px;background:#f9fafb;">
+                    <input id="tutNewLinkAlias" placeholder="Internal name (e.g. “HW3 — section A”)" x-model="$store.inst.tutNewLink.alias"
+                           style="font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;">
+                    <label style="font-size:12px;display:flex;align-items:center;gap:6px;">
+                      <input type="checkbox" id="tutNewLinkPwEnabled" x-model="$store.inst.tutNewLink.pwEnabled">
+                      Require a password to start a new chat
+                    </label>
+                    <input id="tutNewLinkPw" placeholder="Password" x-show="$store.inst.tutNewLink.pwEnabled" x-model="$store.inst.tutNewLink.pw" style="font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      <button class="btn small" @click="$store.inst.submitTutNewLink()">Create link</button>
+                      <button class="btn small" @click="$store.inst.hideTutNewLink()">Cancel</button>
+                      <span id="tutNewLinkStatus" class="muted" style="font-size:12px;" x-text="$store.inst.tutNewLinkStatus"></span>
+                    </div>
+                  </div>
+                  <div id="tutLinkList" class="list">
+                    <template x-if="$store.inst.tutLinkState === 'loading'"><div class="muted" style="padding:8px;">Loading…</div></template>
+                    <template x-if="$store.inst.tutLinkState === 'error'"><div class="muted" style="padding:8px;">Network error.</div></template>
+                    <template x-if="$store.inst.tutLinkState === 'empty'"><div class="muted" style="padding:8px;">No links yet.</div></template>
+                    <template x-for="l in $store.inst.tutLinks" :key="l.id">
+                      <div class="card" style="font-size:13px;padding:10px;margin-bottom:8px;" :data-link="l.id">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                          <input x-model="l.alias" :readonly="!$store.inst.canManageAssignments" @change="$store.inst.updateLink(l, { alias: l.alias })" style="flex:1;font-weight:600;font-size:13px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;">
+                          <button class="btn small" @click="$store.inst.copyToClipboard(l.public_url)" title="Copy public link">🔗 Copy</button>
+                          <!-- QR of the public link (hover = preview, click = large overlay to project to a class) -->
+                          <button class="btn small" type="button" title="Show QR code for this link"
+                                  @mouseenter="LT.qr.pop($el, l.public_url, 'Scan to open this tutoring link')"
+                                  @mouseleave="LT.qr.unpop()"
+                                  @click="LT.qr.show(l.public_url, l.alias || 'Tutoring link', 'Students scan this to open the tutoring chat on their device — no account needed.')">📱 QR</button>
+                          <button class="btn small" x-show="$store.inst.canManageAssignments" @click="$store.inst.deleteLink(l)" title="Delete link">🗑</button>
+                        </div>
+                        <div class="muted" style="font-size:11px;margin:4px 0;word-break:break-all;" x-text="l.public_url"></div>
+                        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:4px;">
+                          <label style="font-size:12px;display:flex;align-items:center;gap:5px;">
+                            <input type="checkbox" :checked="l.is_enabled" :disabled="!$store.inst.canManageAssignments" @change="$store.inst.updateLink(l, { is_enabled: $event.target.checked })"> Accepting new chats
+                          </label>
+                          <label style="font-size:12px;display:flex;align-items:center;gap:5px;">
+                            <input type="checkbox" :checked="!l.chats_disabled" :disabled="!$store.inst.canManageAssignments" @change="$store.inst.updateLink(l, { chats_disabled: !$event.target.checked })"> Existing chats accessible
+                          </label>
+                          <label style="font-size:12px;display:flex;align-items:center;gap:5px;" title="Freeze this link: existing chats stay open and usable, but no new chats can be started">
+                            <input type="checkbox" :checked="l.view_only" :disabled="!$store.inst.canManageAssignments" @change="$store.inst.updateLink(l, { view_only: $event.target.checked })"> No new chats from a session
+                          </label>
+                        </div>
+                        <div x-show="$store.inst.canManageAssignments" style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+                          <label style="font-size:12px;display:flex;align-items:center;gap:5px;">
+                            <input type="checkbox" x-model="l._pwEnabled"> Password
+                          </label>
+                          <input x-model="l._pw" placeholder="password" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;width:130px;">
+                          <button class="btn small" @click="$store.inst.saveLinkPassword(l)">Save</button>
+                        </div>
+                        <div style="margin-top:8px;">
+                          <button class="btn small" @click="$store.inst.toggleLinkChats(l)" x-text="'Chats (' + l.chat_count + ') ▾'"></button>
+                          <div :id="'linkChats_' + l.id" x-show="l._open" style="margin-top:6px;">
+                            <template x-if="l._chatState === 'loading'"><div class="muted" style="font-size:12px;padding:4px;">Loading…</div></template>
+                            <template x-if="l._chatState === 'error'"><div class="muted" style="font-size:12px;">Network error.</div></template>
+                            <template x-if="l._chatState === 'empty'"><div class="muted" style="font-size:12px;padding:4px;">No chats yet.</div></template>
+                            <template x-for="c in l._chats" :key="c.session_id">
+                              <div class="anon-chat-row" :class="{ disabled: c.anon_disabled }">
+                                <span class="anon-chat-name">
+                                  <span x-text="(c.favourite ? '★ ' : '') + (c.closed ? '🔒 ' : '') + $store.inst.anonChatName(c)"></span>
+                                  <span class="muted" style="font-size:11px;" x-text="'· ' + c.msg_count + ' msg · ' + fmtDateTime(c.started_at)"></span>
+                                </span>
+                                <button class="btn small" @click="$store.inst.viewAnonChat(c)" title="View transcript">View</button>
+                                <button class="btn small icon" @click="$store.inst.copyToClipboard(c.chat_url)" title="Copy chat link">🔗</button>
+                                <button class="btn small" x-show="$store.inst.canManageAssignments" @click="$store.inst.setAnonChatClosed(l, c, !c.closed)" :title="c.closed ? 'Reopen this chat (allow new messages)' : 'Close this chat (view-only for the visitor)'" x-text="c.closed ? 'Reopen' : 'Close session'"></button>
+                                <button class="btn small" x-show="$store.inst.canManageAssignments" @click="$store.inst.setAnonChatDisabled(l, c, !c.anon_disabled)" :title="(c.anon_disabled ? 'Enable' : 'Disable') + ' this chat'" x-text="c.anon_disabled ? 'Enable' : 'Disable'"></button>
+                                <button class="btn small icon" x-show="$store.inst.canManageAssignments" @click="$store.inst.deleteAnonChat(l, c)" title="Delete chat">🗑</button>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Single-thread chat view -->
+              <div id="tutThreadChatView" x-show="$store.inst.tutView === 'chat'" x-cloak>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                  <button class="btn small" @click="$store.inst.closeTutThread()">← Back</button>
+                  <span id="tutThreadTitle" :title="$store.inst.canEditTutThread ? 'Click to rename' : ''" x-show="!$store.inst.tutRenameEditing" @click="$store.inst.canEditTutThread && $store.inst.startTutRename()"
+                        style="font-weight:600;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;" x-text="$store.inst.tutThreadTitle"></span>
+                  <input id="tutThreadTitleInput" x-show="$store.inst.tutRenameEditing" x-model="$store.inst.tutRenameValue" @keydown="$store.inst.onTutRenameKey($event)" @blur="$store.inst.commitTutRename()"
+                         style="flex:1;font-weight:600;font-size:14px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;">
+                  <button class="btn small" x-show="$store.inst.canEditTutThread" @click="$store.inst.startTutRename()" title="Rename chat">✎</button>
+                  <button class="btn small" x-show="$store.inst.canEditTutThread" @click="$store.inst.deleteTutThread()" title="Delete chat">🗑</button>
+                </div>
+                <div id="tutFilesBar" class="inst-audit-files" x-show="$store.inst.tutFiles.length" x-cloak style="display:flex;">
+                  <span class="inst-audit-files-label">Attached files</span>
+                  <template x-for="f in $store.inst.tutFiles" :key="f.id">
+                    <a class="inst-audit-file-chip" href="javascript:void(0)" @click="$store.inst.openTutFile(f.id)" x-text="((f.mimetype || '').indexOf('image/') === 0 ? '🖼️ ' : '📄 ') + f.name + (f.compilable ? ' ▶' : '')"></a>
+                  </template>
+                </div>
+                <div id="tutMessages" class="inst-audit-messages" style="max-height:46vh;overflow:auto;padding:4px 2px;">
+                  <template x-if="$store.inst.tutMsgState === 'loading'"><div class="muted">Loading…</div></template>
+                  <template x-if="$store.inst.tutMsgState === 'error'"><div class="muted">Network error.</div></template>
+                  <template x-if="$store.inst.tutMsgState === 'empty'"><div class="muted" style="padding:8px;">Attach the student's code and ask what's wrong.</div></template>
+                  <template x-for="(m, i) in $store.inst.tutMessages" :key="i">
+                    <div>
+                      <template x-if="m.role === 'file'">
+                        <div class="inst-audit-fileline">📄 <a href="javascript:void(0)" @click="$store.inst.openTutFile($store.inst.tutFileLineId(m))" x-text="m.content"></a> <span class="muted" style="font-size:11px;" x-text="$store.inst.tutFileLineAction(m)"></span></div>
+                      </template>
+                      <template x-if="m.role !== 'file'">
+                        <div class="inst-audit-msg" :class="m.role === 'user' ? 'inst-audit-msg-user' : 'inst-audit-msg-ai'">
+                          <div class="inst-audit-msg-label" x-text="m.role === 'user' ? 'Instructor' : 'LeafTutor'"></div>
+                          <div class="inst-audit-msg-bubble" style="white-space:pre-wrap;" x-text="m.content"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+                <div x-show="!$store.inst.canEditTutThread" class="muted" style="margin-top:8px;border-top:1px solid #e5e7eb;padding-top:8px;font-size:12px;">
+                  View-only — this chat belongs to someone else. Create your own tutoring chat to converse.
+                </div>
+                <div x-show="$store.inst.canEditTutThread" style="margin-top:8px;border-top:1px solid #e5e7eb;padding-top:8px;">
+                  <textarea id="tutQuestion" rows="3" x-model="$store.inst.tutQuestion" placeholder="Describe the student's question, e.g. “Student says this compiles but it doesn't — what's wrong?”"
+                            style="width:100%;box-sizing:border-box;resize:vertical;font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;"></textarea>
+                  <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+                    <input id="tutFileInput" type="file" style="display:none" @change="$store.inst.uploadTutFile($event)">
+                    <button class="btn small" @click="$store.inst.triggerTutFileInput()" title="Attach a source/text file">📎 Attach file</button>
+                    <button class="btn small" @click="$store.inst.openTutPaste()" title="Paste the student's code">📋 Paste code</button>
+                    <span id="tutComposerStatus" class="muted" style="font-size:12px;" x-text="$store.inst.tutComposerStatus"></span>
+                    <button class="btn small" id="tutSendBtn" :disabled="$store.inst.tutSending" @click="$store.inst.sendTutQuestion()" style="margin-left:auto;">Send</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div><!-- /asnTutoringTabPanel -->
+
+          <!-- ── Tab 3: Audit (this assignment) ── -->
+          <div id="asnAuditTabPanel" class="asn-tab-panel" x-show="$store.inst.asnTab === 'audit'" x-cloak>
+            <div id="asnAuditNoSelect" class="muted" style="text-align:center;padding:28px 16px;" x-show="!$store.inst.currentAsnId">
+              Select an assignment from the sidebar to view its conversations.
+            </div>
+            <div id="asnAuditBody" x-show="$store.inst.currentAsnId" x-cloak>
+              <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px;">
+                <h3 id="asnAuditTitle" style="margin:0;font-size:14px;flex:1;" x-text="$store.inst.currentAsn ? ('Conversations — ' + $store.inst.currentAsn.title) : 'Conversations'"></h3>
+                <button class="btn small icon" title="Refresh conversations" aria-label="Refresh conversations" @click="$store.inst.refreshAsnAudit()">⟳</button>
+              </div>
+
+              <!-- Needs attention: help-flagged threads + latest failing runs (file + first
+                   error line) — the typo is usually already located here; click → transcript -->
+              <div class="inst-issues" x-show="$store.inst.asnIssues.flagged.length || $store.inst.asnIssues.issues.length" x-cloak>
+                <div class="inst-issues-head">Needs attention</div>
+                <template x-for="f in $store.inst.asnIssues.flagged" :key="'f' + f.session_id">
+                  <div class="inst-issue flagged" title="View transcript"
+                       @click="$store.inst.openInstAuditChat(f.session_id, f.who, f.when, '')">
+                    <span class="inst-issue-who">🙋 <b x-text="f.who"></b> asked for help</span>
+                    <span class="inst-issue-err" x-text="f.note ? ('“' + f.note + '”') : ''"></span>
+                    <span class="inst-issue-when" x-text="fmtDateTime(f.when)"></span>
+                    <button class="btn small" @click.stop="$store.inst.resolveHelp(f.session_id)"
+                            title="Mark as handled (clears the student's flag)">✓ Resolve</button>
+                  </div>
+                </template>
+                <template x-for="(i, idx) in $store.inst.asnIssues.issues" :key="'i' + i.session_id + idx">
+                  <div class="inst-issue" title="View transcript"
+                       @click="$store.inst.openInstAuditChat(i.session_id, i.who, i.when, '')">
+                    <span class="inst-issue-who">✘ <b x-text="i.who"></b> · <code x-text="i.file"></code></span>
+                    <span class="inst-issue-err" x-text="i.error"></span>
+                    <span class="inst-issue-when" x-text="fmtDateTime(i.when) || i.when"></span>
+                    <button class="btn small" @click.stop="$store.inst.dismissIssue(i.file_id)"
+                            title="Dismiss from this list (the run record stays on the file)">✕ Dismiss</button>
+                  </div>
+                </template>
+              </div>
+
+              <div class="inst-audit-table-wrap">
+                <table class="inst-audit-table">
+                  <thead><tr>
+                    <th class="sortable" @click="$store.inst.sortAudit('student_name')">Student<span x-text="$store.inst.sortArrow('student_name')"></span></th>
+                    <th class="sortable" @click="$store.inst.sortAudit('thread_label')">Thread<span x-text="$store.inst.sortArrow('thread_label')"></span></th>
+                    <th class="sortable" @click="$store.inst.sortAudit('username')">Username<span x-text="$store.inst.sortArrow('username')"></span></th>
+                    <th class="sortable" @click="$store.inst.sortAudit('started_at')">Started<span x-text="$store.inst.sortArrow('started_at')"></span></th>
+                    <th>Msgs</th>
+                  </tr></thead>
+                  <tbody id="asnAuditSessionsTbody">
+                    <template x-if="!$store.inst.asnAuditSessions.length"><tr><td colspan="5" class="inst-audit-empty">No conversations yet for this assignment.</td></tr></template>
+                    <template x-for="s in $store.inst.sortedAsnAuditSessions" :key="s.session_id">
+                      <tr class="audit-row" :class="{ 'help-flagged': s.help_flagged }" title="View transcript" @click="$store.inst.openInstAuditChat(s.session_id, s.student_name, s.started_at, s.thread_label || '')">
+                        <td><span x-show="s.help_flagged" :title="'Asked for help' + (s.help_note ? (': ' + s.help_note) : '') + (s.help_flagged_at ? (' (' + fmtDateTime(s.help_flagged_at) + ')') : '')">🙋 </span><span x-text="s.student_name"></span></td>
+                        <td style="white-space:nowrap;" x-text="s.thread_label || 'Session'"></td>
+                        <td><span style="font-size:11px;color:#6b7280;" x-text="s.username"></span></td>
+                        <td style="font-size:11px;white-space:nowrap;" x-text="fmtDateTime(s.started_at)"></td>
+                        <td style="text-align:center;" x-text="s.msg_count"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Class Roster + Audit (tabbed) -->
+        <section class="card" id="rosterSection" aria-label="Roster">
+          <div class="roster-tab-bar">
+            <button class="roster-tab" x-show="!$store.inst.isTA" :class="{ active: $store.inst.rosterTab === 'roster' }" @click="$store.inst.switchRosterTab('roster')">Class Roster</button>
+            <button class="roster-tab" :class="{ active: $store.inst.rosterTab === 'audit' }" @click="$store.inst.switchRosterTab('audit')">Audit</button>
+            <button class="roster-tab" x-show="!$store.inst.isTA" :class="{ active: $store.inst.rosterTab === 'assistant' }" @click="$store.inst.switchRosterTab('assistant')">Assistant</button>
+            <div class="muted" id="rosterClassHint" style="margin-left:auto;font-size:12px;align-self:center;" x-text="$store.inst.currentClassId ? $store.inst.currentClassName : 'No class selected'"></div>
+            <button class="roster-collapse-btn" id="rosterCollapseToggle" title="Collapse panel" aria-label="Collapse panel" @click="toggleRosterPanel()">→</button>
+          </div>
+
+          <div class="roster-collapsed-label" @click="toggleRosterPanel()" title="Expand panel" aria-hidden="true" x-text="$store.inst.isTA ? 'Audit' : 'Roster · Audit · Assistant'">Roster · Audit</div>
+
+          <!-- Tab 1: Class Roster -->
+          <div id="rosterTabPanel" class="roster-tab-panel" x-show="!$store.inst.isTA && $store.inst.rosterTab === 'roster'">
+            <div id="rosterEmpty" class="card muted" style="text-align:center;padding:16px;" x-show="!$store.inst.currentClassId">
+              Select a class on the left to manage its roster.
+            </div>
+            <div id="rosterBody" x-show="$store.inst.currentClassId" x-cloak>
+              <div class="row" style="grid-template-columns: 1fr 1fr 1fr auto;">
+                <input id="stFirst" placeholder="First name" x-model="$store.inst.newStudent.first" @keydown.enter.prevent="$store.inst.addStudent()" />
+                <input id="stLast" placeholder="Last name" x-model="$store.inst.newStudent.last" @keydown.enter.prevent="$store.inst.addStudent()" />
+                <input id="stEmail" type="email" placeholder="Email" inputmode="email" x-model="$store.inst.newStudent.email" @keydown.enter.prevent="$store.inst.addStudent()" />
+                <button class="btn small roster-add-btn" title="Add student" @click="$store.inst.addStudent()">+</button>
+              </div>
+
+              <div class="card" style="margin-top:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+                  <strong>Class Roster (CSV/XLSX)</strong>
+                  <span class="tip" tabindex="0" role="button" aria-label="Roster format help">i
+                    <span class="tip-pop">Required columns: <b>first_name</b>, <b>last_name</b>, <b>email</b></span>
+                  </span>
+                </div>
+                <div id="rosterDrop" class="dropzone" :class="{ dragover: $store.inst.rosterDragover }" tabindex="0" aria-label="Roster file dropzone" style="margin-top:8px;"
+                     @click="$store.inst.currentClassId ? $refs.rosterFile.click() : alert('Select a class first')"
+                     @keydown.enter.prevent="$store.inst.currentClassId ? $refs.rosterFile.click() : alert('Select a class first')"
+                     @dragover.prevent="$store.inst.rosterDragover = true" @dragleave.prevent="$store.inst.rosterDragover = false" @drop.prevent="$store.inst.onRosterDrop($event)">
+                  Drop CSV/XLSX here or
+                  <label style="text-decoration:underline;cursor:pointer;">
+                    choose a file
+                    <input id="rosterFile" x-ref="rosterFile" type="file" accept=".csv,.xlsx" style="display:none" @change="$store.inst.onRosterFilePicked($event)">
+                  </label>
+                  <div class="muted" style="margin-top:6px">Duplicates will be ignored.</div>
+                </div>
+                <div id="rosterUploadMsg" class="muted" style="margin-top:6px" x-text="$store.inst.rosterUploadMsg"></div>
+              </div>
+
+              <div class="list" id="studentList" style="margin-top:12px;max-height:280px;overflow-y:auto;" x-html="$store.inst.rosterHtml"></div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Audit (whole class) -->
+          <div id="auditTabPanel" class="roster-tab-panel" x-show="$store.inst.rosterTab === 'audit'" x-cloak>
+            <div id="instAuditNoClass" class="muted" style="text-align:center;padding:28px 16px;" x-show="$store.inst.instAuditState === 'noclass'">
+              Select a class to audit student conversations.
+            </div>
+            <div id="instAuditBody" x-show="$store.inst.instAuditState !== 'noclass'" x-cloak>
+              <div style="margin-bottom:10px;">
+                <div style="display:flex;align-items:center;margin-bottom:6px;">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;flex:1;">Assignment</div>
+                  <button class="btn small icon" x-show="$store.inst.instAuditSelectedAsnId" title="Refresh conversations" aria-label="Refresh conversations" @click="$store.inst.refreshInstAudit()">⟳</button>
+                </div>
+                <div id="instAuditAsnPills" class="inst-audit-pills">
+                  <template x-if="$store.inst.instAuditState === 'empty'"><span class="muted" style="font-size:12px;">No assignments yet.</span></template>
+                  <template x-for="a in $store.inst.instAuditOrderedAsns" :key="a.id">
+                    <button class="inst-audit-pill" :class="{ active: $store.inst.instAuditSelectedAsnId === a.id }" @click="$store.inst.selectInstAuditAsn(a.id)" x-text="a.title"></button>
+                  </template>
+                </div>
+              </div>
+              <div class="inst-audit-table-wrap">
+                <table class="inst-audit-table">
+                  <thead><tr>
+                    <th class="sortable" @click="$store.inst.sortAudit('student_name')">Student<span x-text="$store.inst.sortArrow('student_name')"></span></th>
+                    <th class="sortable" @click="$store.inst.sortAudit('thread_label')">Thread<span x-text="$store.inst.sortArrow('thread_label')"></span></th>
+                    <th class="sortable" @click="$store.inst.sortAudit('username')">Username<span x-text="$store.inst.sortArrow('username')"></span></th>
+                    <th class="sortable" @click="$store.inst.sortAudit('started_at')">Started<span x-text="$store.inst.sortArrow('started_at')"></span></th>
+                    <th>Msgs</th>
+                  </tr></thead>
+                  <tbody id="instAuditSessionsTbody">
+                    <template x-if="$store.inst.instAuditState === 'empty'"><tr><td colspan="5" class="inst-audit-empty">No assignments in this class.</td></tr></template>
+                    <template x-if="$store.inst.instAuditState === 'ready' && !$store.inst.instAuditSessions.length"><tr><td colspan="5" class="inst-audit-empty">No conversations yet for this assignment.</td></tr></template>
+                    <template x-for="s in $store.inst.sortedInstAuditSessions" :key="s.session_id">
+                      <tr class="audit-row" title="View transcript" @click="$store.inst.openInstAuditChat(s.session_id, s.student_name, s.started_at, s.thread_label || '')">
+                        <td x-text="s.student_name"></td>
+                        <td style="white-space:nowrap;" x-text="s.thread_label || 'Session'"></td>
+                        <td><span style="font-size:11px;color:#6b7280;" x-text="s.username"></span></td>
+                        <td style="font-size:11px;white-space:nowrap;" x-text="fmtDateTime(s.started_at)"></td>
+                        <td style="text-align:center;" x-text="s.msg_count"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Assistant (teaching assistants — per-course link-login helpers) -->
+          <div id="assistantTabPanel" class="roster-tab-panel" x-show="!$store.inst.isTA && $store.inst.rosterTab === 'assistant'" x-cloak>
+            <div class="card muted" style="text-align:center;padding:16px;" x-show="!$store.inst.currentClassId">
+              Select a class on the left to manage its teaching assistants.
+            </div>
+            <div x-show="$store.inst.currentClassId" x-cloak>
+              <div class="row" style="grid-template-columns: 1fr 1fr auto;">
+                <input id="asstName" placeholder="Name" x-model="$store.inst.asstForm.name" @keydown.enter.prevent="$store.inst.createAssistant()" />
+                <input id="asstEmail" type="email" placeholder="Email (optional)" inputmode="email" x-model="$store.inst.asstForm.email" @keydown.enter.prevent="$store.inst.createAssistant()" />
+                <button class="btn small roster-add-btn" title="Add teaching assistant" @click="$store.inst.createAssistant()">+</button>
+              </div>
+              <div class="muted" style="font-size:12px;margin-top:4px;min-height:16px;" x-text="$store.inst.asstStatus"></div>
+
+              <div class="list" id="assistantList" style="margin-top:8px;max-height:320px;overflow-y:auto;">
+                <template x-if="$store.inst.asstState === 'loading'"><div class="muted" style="padding:10px;">Loading…</div></template>
+                <template x-if="$store.inst.asstState === 'ready' && !$store.inst.assistants.length"><div class="muted" style="padding:10px;">No teaching assistants yet. Add one above.</div></template>
+                <template x-for="ta in $store.inst.assistants" :key="ta.id">
+                  <div class="item" style="display:flex;align-items:center;gap:8px;" :style="'opacity:' + (ta.is_active ? 1 : 0.5)">
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;">
+                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13px;"
+                            @mouseenter="$store.inst.asstTipShow($event, ta.name)" @mouseleave="$store.inst.asstTipHide()" x-text="ta.name"></span>
+                      <span class="muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;"
+                            @mouseenter="$store.inst.asstTipShow($event, ta.email)" @mouseleave="$store.inst.asstTipHide()" x-text="ta.email"></span>
+                    </div>
+                    <span class="muted" style="font-size:10px;white-space:nowrap;" x-show="!ta.is_active">inactive</span>
+                    <span class="muted" style="font-size:10px;white-space:nowrap;border:1px solid var(--lt-border-secondary);border-radius:4px;padding:1px 5px;" x-show="ta.assignment_management" title="May manage assignments and assignment files">mgmt</span>
+                    <button class="btn small" @click="$store.inst.openAsstManage(ta)">Manage</button>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Floating tooltip for truncated name/email (in-page, not a native title popup) -->
+              <div x-show="$store.inst.asstTip.show" x-cloak
+                   :style="'position:fixed;z-index:1000;left:' + $store.inst.asstTip.x + 'px;top:' + $store.inst.asstTip.y + 'px;max-width:340px;word-break:break-all;background:var(--lt-bg, #fff);color:var(--lt-text, #111);border:1px solid var(--lt-border-secondary, #d1d5db);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.12);padding:6px 9px;font-size:12px;pointer-events:none;'"
+                   x-text="$store.inst.asstTip.text"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Modal: file detail / edit -->
+        <div id="fileDetailModal" :class="{ open: $store.inst.fdOpen }" @click="if ($event.target === $el) $store.inst.closeFileDetail()">
+          <div id="fileDetailBox">
+            <div class="fd-header">
+              <div class="fd-title-wrap">
+                <button type="button" id="fdStar" class="file-star" :class="{ on: $store.inst.fd && $store.inst.fd.starred }" @click.stop="$store.inst.canManageAssignments && $store.inst.fdToggleStar()" x-text="$store.inst.fd && $store.inst.fd.starred ? '★' : '☆'"></button>
+                <span id="fdTitle" class="fd-title" x-text="$store.inst.fd ? $store.inst.fd.name : ''"></span>
+              </div>
+              <div class="fd-header-actions">
+                <button class="btn small" id="fdDownloadBtn" @click="$store.inst.fd && $store.inst.downloadFile($store.inst.fd.id, $store.inst.fd.name)">⤓ Download</button>
+                <button class="btn small" @click="$store.inst.closeFileDetail()">✕ Close</button>
+              </div>
+            </div>
+            <div class="fd-body">
+              <div id="fdLoading" class="fd-loading" x-show="$store.inst.fdState !== 'ready'" x-text="$store.inst.fdState === 'error' ? $store.inst.fdError : 'Loading…'"></div>
+              <div id="fdContentWrap" x-show="$store.inst.fdState === 'ready'" x-cloak style="display:flex;flex-direction:column;gap:14px;">
+                <template x-if="$store.inst.fd">
+                  <div style="display:flex;flex-direction:column;gap:14px;">
+                    <label class="fd-active"><input type="checkbox" id="fdActive" :checked="$store.inst.fd.active !== false" :disabled="!$store.inst.canManageAssignments" @change="$store.inst.toggleFile($store.inst.fd, $event.target.checked)"> <span>Include in AI context</span></label>
+
+                    <div class="fd-section">
+                      <div class="fd-label">Description</div>
+                      <div id="fdSummary" class="fd-summary" x-html="$store.inst.fdSummaryHtml()"></div>
+                      <div id="fdRemarks" class="fd-remarks" x-show="$store.inst.fd.remarks" x-text="$store.inst.fd.remarks"></div>
+                    </div>
+
+                    <!-- Tags: drive how this file feeds tutoring / Q&A / compilation -->
+                    <div class="fd-section" id="fdTagsSection">
+                      <div class="fd-label">Tags
+                        <span class="fd-muted" x-show="!$store.inst.fd.tags_customized" style="text-transform:none;font-weight:400;letter-spacing:normal;">· auto-suggested</span>
+                      </div>
+                      <div class="fd-tags">
+                        <template x-for="t in ($store.inst.fd.tags || [])" :key="t">
+                          <span class="fd-tag-chip" :class="{ 'fd-tag-private': t === 'sample_answer' }">
+                            <span x-text="$store.inst.fdTagLabel(t)"></span>
+                            <button type="button" class="fd-tag-x" title="Remove tag" x-show="$store.inst.canManageAssignments" @click="$store.inst.fdRemoveTag(t)">✕</button>
+                          </span>
+                        </template>
+                        <span class="fd-muted" x-show="!($store.inst.fd.tags && $store.inst.fd.tags.length)">No tags yet</span>
+                        <select class="fd-tag-add" x-show="$store.inst.canManageAssignments && $store.inst.fdAddableTags().length"
+                                @change="$store.inst.fdAddTag($event.target.value); $event.target.value=''">
+                          <option value="">+ Add tag…</option>
+                          <template x-for="t in $store.inst.fdAddableTags()" :key="t">
+                            <option :value="t" x-text="$store.inst.fdTagLabel(t)"></option>
+                          </template>
+                        </select>
+                      </div>
+                      <div class="fd-muted" x-show="($store.inst.fd.tags || []).includes('sample_answer')">
+                        🔒 Sample answer — kept private from students (never shown in chat; only its verified run output is shared).
+                      </div>
+                      <span class="fd-muted" x-show="$store.inst.fdTagsStatus" x-text="$store.inst.fdTagsStatus"></span>
+                    </div>
+
+                    <div id="fdHintSlot" x-html="$store.inst.fdHintHtml()"></div>
+
+                    <template x-if="$store.inst.fdCompileStatusText()">
+                      <div id="fdCompileStatus" class="fd-muted" :style="'color:' + $store.inst.fdCompileStatusText().color" x-text="$store.inst.fdCompileStatusText().text"></div>
+                    </template>
+
+                    <!-- Editable content -->
+                    <template x-if="$store.inst.fd.editable && !$store.inst.fd.content_error">
+                      <div id="fdEditorSection" class="fd-section">
+                        <div class="fd-label">File Content <span id="fdEditorHint" class="fd-muted" x-text="$store.inst.fdEditorHint()"></span></div>
+                        <textarea id="fdEditor" class="fd-editor" spellcheck="false" x-tab-indent
+                                  x-code-editor="$store.inst.fd ? { content: $store.inst.fd.content, language: $store.inst.fd.language, name: $store.inst.fd.name } : null"
+                                  :readonly="!$store.inst.canManageAssignments"
+                                  x-model="$store.inst.fd.content"></textarea>
+                        <template x-if="$store.inst.fdRisk">
+                          <div id="fdRisk" class="fd-risk">
+                            <div class="fd-risk-hdr" x-text="'⚠ Potentially risky code (' + $store.inst.fdRisk.risk + ')'"></div>
+                            <ul><template x-for="r in $store.inst.fdRisk.reasons" :key="r"><li x-text="r"></li></template></ul>
+                            <div class="fd-actions">
+                              <button class="btn small danger" @click="$store.inst.saveFileContent(true)">Save anyway</button>
+                              <button class="btn small" @click="$store.inst.fdRisk = null">Cancel</button>
+                            </div>
+                          </div>
+                        </template>
+                        <div class="fd-actions">
+                          <button class="btn" id="fdSaveBtn" x-show="$store.inst.canManageAssignments" :disabled="$store.inst.fdBusy" @click="$store.inst.saveFileContent(false)">Save</button>
+                          <button class="btn small" id="fdCompileBtn" x-show="$store.inst.canManageAssignments && $store.inst.fd.is_source && $store.inst.fd.has_main" @click="$store.inst.fdOpenCompile()">Compile &amp; Run</button>
+                          <span id="fdSaveStatus" class="fd-muted" x-text="$store.inst.fdSaveStatus"></span>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Non-editable note -->
+                    <template x-if="!($store.inst.fd.editable && !$store.inst.fd.content_error)">
+                      <div id="fdContentError" class="fd-muted">
+                        <template x-if="$store.inst.fd.content_error"><div x-text="$store.inst.fd.content_error"></div></template>
+                        <template x-if="!$store.inst.fd.content_error">
+                          <div>
+                            <div>Preview/editing isn’t available for this file type — download it to open.</div>
+                            <button class="btn" style="margin-top:8px;" @click="$store.inst.downloadFile($store.inst.fd.id, $store.inst.fd.name)">⤓ Download to view</button>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: compile & run source file -->
+        <div id="compileModal" :class="{ open: $store.inst.compileOpen }" @click="if ($event.target === $el) $store.inst.closeCompileModal()">
+          <div id="compileModalBox">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid #e7ece8;flex-shrink:0;">
+              <div>
+                <div style="font-size:16px;font-weight:600;color:#0f1a14;" id="compileModalTitle" x-text="$store.inst.compileTitle"></div>
+                <div style="font-size:12px;color:#6b7280;margin-top:2px;" id="compileModalSub" x-text="$store.inst.compileSub"></div>
+              </div>
+              <button class="btn small" @click="$store.inst.closeCompileModal()">✕ Close</button>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+              <div id="compileModalLoading" style="text-align:center;color:#6b7280;padding:24px 0;" x-show="$store.inst.compileState !== 'ready'" x-text="$store.inst.compileState === 'error' ? $store.inst.compileError : 'Analyzing file…'"></div>
+              <div id="compileModalContent" x-show="$store.inst.compileState === 'ready'" x-cloak style="display:flex;flex-direction:column;gap:12px;">
+                <div id="compileMetaLine" style="font-size:12px;color:#6b7280;padding:6px 10px;background:var(--lt-fill-secondary);border-radius:6px;" x-text="$store.inst.compileMetaText"></div>
+                <div>
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:4px;">Description</div>
+                  <div id="compileModalDesc" style="font-size:13px;color:#374151;line-height:1.5;" x-text="$store.inst.compileAnalysis ? ($store.inst.compileAnalysis.program_description || '(no description)') : 'Not analyzed yet — click Analyze to inspect this program.'"></div>
+                </div>
+                <div id="compileSiblingNote" x-show="$store.inst.compileAnalysis && $store.inst.compileAnalysis.sibling_count > 0" style="font-size:12px;color:#6b7280;padding:6px 10px;background:var(--lt-fill-secondary);border-radius:6px;"
+                     x-text="$store.inst.compileAnalysis ? (($store.inst.compileAnalysis.sibling_count || 0) + ' other source file' + (($store.inst.compileAnalysis.sibling_count||0) > 1 ? 's' : '') + ' in this assignment will be compiled together.') : ''"></div>
+                <div id="compileSecuritySection" x-show="$store.inst.compileAnalysis && $store.inst.compileAnalysis.security_notes" style="padding:10px 12px;background:#fef3c7;border-radius:8px;border-left:3px solid #f59e0b;">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#92400e;margin-bottom:4px;">Security Notes</div>
+                  <div id="compileModalSecurity" style="font-size:13px;color:#78350f;line-height:1.5;" x-text="$store.inst.compileAnalysis && $store.inst.compileAnalysis.security_notes"></div>
+                </div>
+                <div id="compileDepsSection" x-show="$store.inst.compileAnalysis && ($store.inst.compileAnalysis.missing_deps || []).length" style="padding:10px 12px;background:#fff7ed;border-radius:8px;border-left:3px solid #f97316;">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#c2410c;margin-bottom:4px;">Missing Dependencies</div>
+                  <div style="font-size:12px;color:#7c2d12;margin-bottom:8px;">Referenced but not uploaded. Generate stubs with the LLM or upload manually.</div>
+                  <div id="compileDepsList" style="display:flex;flex-direction:column;gap:6px;">
+                    <template x-for="dep in ($store.inst.compileAnalysis ? ($store.inst.compileAnalysis.missing_deps || []) : [])" :key="dep">
+                      <div :id="'dep_row_' + dep.replace(/[^a-z0-9]/gi,'_')" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span style="font-size:12px;font-family:monospace;flex:1;min-width:120px;" x-text="dep"></span>
+                        <button class="btn small" style="font-size:11px;padding:2px 10px;" @click="generateDep($store.inst.compileFileId, dep, $event.target)">Generate with LLM</button>
+                        <span class="dep-gen-status" style="font-size:11px;color:#6b7280;"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+                <div id="compileFileIOSection" x-show="$store.inst.compileHasFileIO($store.inst.compileAnalysis)" style="padding:10px 12px;background:#f0f9ff;border-radius:8px;border-left:3px solid #0ea5e9;">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#0369a1;margin-bottom:6px;">File I/O</div>
+                  <div id="compileFileIOBody" style="font-size:12px;color:#0c4a6e;line-height:1.6;" x-html="$store.inst.compileAnalysis ? $store.inst.compileFileIOHtml($store.inst.compileAnalysis) : ''"></div>
+                  <div id="compileAbsPathWarning" x-show="$store.inst.compileAnalysis && $store.inst.compileAnalysis.uses_absolute_paths && $store.inst.compileAnalysis.absolute_path_warning" style="margin-top:6px;font-size:12px;color:#b45309;background:#fffbeb;border-radius:4px;padding:4px 8px;"
+                       x-text="$store.inst.compileAnalysis ? ('⚠ Absolute path: ' + $store.inst.compileAnalysis.absolute_path_warning) : ''"></div>
+                </div>
+                <div id="compileStdinSection" x-show="$store.inst.compileAnalysis && $store.inst.compileAnalysis.needs_stdin">
+                  <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;display:block;margin-bottom:4px;">
+                    Simulated Keyboard Input
+                    <span style="font-size:10px;font-weight:normal;text-transform:none;color:#9ca3af;"> — one value per line</span>
+                  </label>
+                  <textarea id="compileStdinInput" rows="5" x-model="$store.inst.compileStdin" style="width:100%;box-sizing:border-box;font-size:13px;font-family:monospace;padding:8px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;" placeholder="e.g.&#10;+&#10;3&#10;7"></textarea>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <button class="btn small" id="compileAnalyzeBtn" :disabled="$store.inst.compileBusy.analyze" @click="$store.inst.runCompileAnalyze()" x-text="$store.inst.compileBusy.analyze ? 'Analyzing…' : ($store.inst.compileAnalysis ? 'Re-analyze' : 'Analyze')"></button>
+                  <button class="btn small" id="compileRunBtn" :disabled="$store.inst.compileBusy.run" @click="$store.inst.submitCompile()" style="background:var(--lt-primary);color:#fff;">Run ▶</button>
+                  <span id="compileRunStatus" class="muted" :style="'color:' + $store.inst.compileRunStatus.color" x-text="$store.inst.compileRunStatus.text"></span>
+                </div>
+                <div id="compileLastSuccessSection" x-show="$store.inst.compileLastSuccess" style="border-left:3px solid #16a34a;background:#f0fdf4;border-radius:6px;padding:8px 10px;">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#166534;margin-bottom:4px;">
+                    Most recent successful output
+                    <span id="compileLastSuccessMeta" style="font-weight:normal;text-transform:none;color:#15803d;" x-text="$store.inst.compileLastSuccessMeta()"></span>
+                  </div>
+                  <pre id="compileLastSuccessOutput" style="background:#fff;padding:10px;border-radius:6px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;margin:0;" x-text="$store.inst.compileLastSuccess ? $store.inst.compileSuccessText($store.inst.compileLastSuccess.run) : ''"></pre>
+                </div>
+                <div id="compileOutputSection" x-show="$store.inst.compileRun" style="">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:4px;">Output</div>
+                  <pre id="compileOutput" style="background:#f3f4f6;padding:12px;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow-y:auto;margin:0;" x-text="$store.inst.compileOutputText($store.inst.compileRun)"></pre>
+                  <div x-show="$store.inst.compileRun && $store.inst.compileRun.auto_repair_diff && $store.inst.compileRun.auto_repair_diff.length"
+                       x-html="autoRepairDiffHtml($store.inst.compileRun && $store.inst.compileRun.auto_repair_diff)"></div>
+                </div>
+                <div id="compileWrittenFilesSection" x-show="$store.inst.compileRun && ($store.inst.compileRun.written_files || []).length" x-cloak style="display:block;">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:4px;">Files Written by Program</div>
+                  <div id="compileWrittenFilesList" style="display:flex;flex-direction:column;gap:8px;">
+                    <template x-for="(wf, i) in ($store.inst.compileRun ? ($store.inst.compileRun.written_files || []) : [])" :key="i">
+                      <div style="border:1px solid #e5e7eb;border-radius:6px;overflow:hidden;">
+                        <div style="background:#f9fafb;padding:4px 10px;font-size:11px;font-weight:600;font-family:monospace;color:#374151;"><span x-text="wf.filename || ''"></span> <span style="font-weight:normal;color:#9ca3af;" x-text="'(' + wf.size + ' bytes' + (wf.truncated ? ' — truncated' : '') + ')'"></span></div>
+                        <pre style="margin:0;padding:10px;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow-y:auto;background:#fff;" x-text="wf.content || ''"></pre>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+                <div id="compileEvalSection" x-show="$store.inst.compileRun && ($store.inst.compileRun.output_evaluations || []).length" x-cloak style="margin-top:8px;">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:4px;">Output Evaluation</div>
+                  <div id="compileEvalBody" style="display:flex;flex-direction:column;gap:8px;">
+                    <template x-for="(ev, i) in ($store.inst.compileRun ? ($store.inst.compileRun.output_evaluations || []) : [])" :key="i">
+                      <div :style="'border:1px solid ' + ({pass:'#16a34a',partial:'#d97706',fail:'#dc2626'}[ev.verdict] || '#6b7280') + ';border-radius:6px;padding:10px;'">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                          <span :style="'background:' + ({pass:'#16a34a',partial:'#d97706',fail:'#dc2626'}[ev.verdict] || '#6b7280') + ';color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;'" x-text="String(ev.verdict || 'unknown').toUpperCase()"></span>
+                          <span style="font-size:12px;font-family:monospace;" x-text="(ev.written_file || '') + ' vs. ' + (ev.expected_file || '')"></span>
+                        </div>
+                        <div style="font-size:13px;color:#374151;" x-text="ev.explanation || ''"></div>
+                        <ul x-show="(ev.differences || []).length" style="margin:6px 0 0 16px;font-size:12px;color:#6b7280;">
+                          <template x-for="(d, j) in (ev.differences || [])" :key="j"><li x-text="d"></li></template>
+                        </ul>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: instructor audit conversation viewer -->
+        <template x-if="$store.inst.auditOpen">
+        <div class="inst-audit-modal-overlay" id="instAuditChatModal" @click="if ($event.target === $el) $store.inst.closeInstAuditModal()">
+          <div class="inst-audit-modal">
+            <div class="inst-audit-modal-header">
+              <div>
+                <div class="inst-audit-modal-title" id="instAuditChatTitle" x-text="$store.inst.auditTitle + ($store.inst.auditClosed ? ' 🔒' : '')"></div>
+                <div class="inst-audit-modal-sub" id="instAuditChatSub" x-text="$store.inst.auditSub + ($store.inst.auditClosed ? ' · Closed (view-only for the participant)' : '')"></div>
+              </div>
+              <div style="display:flex; gap:8px; flex-shrink:0;">
+                <button class="btn small" x-show="$store.inst.auditCanClose" :disabled="$store.inst.auditClosing"
+                        @click="$store.inst.toggleAuditClosed()"
+                        :title="$store.inst.auditClosed ? 'Allow the participant to send messages again' : 'Make this conversation view-only for the participant'"
+                        x-text="$store.inst.auditClosed ? 'Reopen session' : 'Close session'"></button>
+                <button class="btn small" @click="$store.inst.closeInstAuditModal()">✕ Close</button>
+              </div>
+            </div>
+            <div class="inst-audit-files" id="instAuditFiles" x-show="$store.inst.auditFiles.length" x-cloak style="display:flex;">
+              <span class="inst-audit-files-label">Uploaded files</span>
+              <template x-for="f in $store.inst.auditFiles" :key="f.file_id">
+                <a class="inst-audit-file-chip" :href="'/instructor/audit/file/' + encodeURIComponent(f.file_id)" target="_blank" rel="noopener" x-text="'📄 ' + f.filename"></a>
+              </template>
+            </div>
+            <div class="inst-audit-messages" id="instAuditChatMessages">
+              <template x-if="$store.inst.auditState === 'loading'"><div class="muted">Loading…</div></template>
+              <template x-if="$store.inst.auditState === 'error'"><div class="muted" x-text="'Error: ' + ($store.inst.auditError || 'Failed')"></div></template>
+              <template x-if="$store.inst.auditState === 'empty'"><div class="muted">No messages in this session.</div></template>
+              <template x-for="(m, i) in $store.inst.auditMessages" :key="i">
+                <div>
+                  <template x-if="m.role === 'file'">
+                    <div class="inst-audit-fileline">📄 <a :href="'/instructor/audit/file/' + encodeURIComponent(m.file_id)" target="_blank" rel="noopener" x-text="m.filename"></a> <span class="muted" style="font-size:11px;">(uploaded file — click to view)</span></div>
+                  </template>
+                  <template x-if="m.role !== 'file'">
+                    <div class="inst-audit-msg" :class="m.role === 'user' ? 'inst-audit-msg-user' : 'inst-audit-msg-ai'">
+                      <div class="inst-audit-msg-label" x-text="m.role === 'user' ? 'Student' : 'Tutor'"></div>
+                      <div class="inst-audit-msg-bubble" x-text="m.content"></div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+        </template>
+
+        <!-- Modal: student password reset link (single-use, server-tracked) -->
+        <div class="inst-audit-modal-overlay" id="studentResetLinkModal" x-show="$store.inst.srlOpen" x-cloak style="display:flex;" @click="if ($event.target === $el) $store.inst.closeStudentResetLink()">
+          <div class="inst-audit-modal" style="max-width:560px;">
+            <div class="inst-audit-modal-header">
+              <div>
+                <div class="inst-audit-modal-title">Password Reset Link</div>
+                <div class="inst-audit-modal-sub" x-text="$store.inst.srlSub"></div>
+              </div>
+              <button class="btn small" @click="$store.inst.closeStudentResetLink()" style="flex-shrink:0;">✕ Close</button>
+            </div>
+            <div style="padding:14px 20px 18px;display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="srlLinkInput" type="text" readonly :value="$store.inst.srlLink" @click="$event.target.select()"
+                       style="flex:1;box-sizing:border-box;font-size:12px;padding:7px 9px;border:1px solid var(--lt-border-secondary);border-radius:6px;background:var(--lt-fill-quaternary);color:var(--lt-text);">
+                <button type="button" class="btn small" title="Copy link" aria-label="Copy link"
+                        @click="$store.inst.copyStudentResetLink()" style="flex-shrink:0;display:inline-flex;align-items:center;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="muted" style="font-size:12px;line-height:1.5;" x-text="$store.inst.srlHint"></div>
+              <div style="font-size:12px;color:var(--lt-primary);min-height:16px;" x-text="$store.inst.srlStatus"></div>
+              <div style="display:flex;gap:8px;">
+                <button type="button" class="btn small" @click="$store.inst.fetchStudentResetLink(true)">Generate New</button>
+                <button type="button" class="btn small" @click="$store.inst.closeStudentResetLink()">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: manage a teaching assistant (login link, privileges, removal) -->
+        <div class="inst-audit-modal-overlay" id="asstManageModal" x-show="$store.inst.asstModal" x-cloak style="display:flex;" @click="if ($event.target === $el) $store.inst.closeAsstManage()">
+          <div class="inst-audit-modal" style="max-width:560px;">
+            <template x-if="$store.inst.asstModal">
+              <div>
+                <div class="inst-audit-modal-header">
+                  <div>
+                    <div class="inst-audit-modal-title" x-text="'Teaching Assistant — ' + $store.inst.asstModal.name"></div>
+                    <div class="inst-audit-modal-sub" x-text="$store.inst.asstModal.email"></div>
+                  </div>
+                  <button class="btn small" @click="$store.inst.closeAsstManage()" style="flex-shrink:0;">✕ Close</button>
+                </div>
+                <div style="padding:14px 20px 18px;display:flex;flex-direction:column;gap:12px;">
+                  <div>
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;margin-bottom:4px;">Login link</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      <input type="text" readonly :value="$store.inst.asstModal.login_url" @click="$event.target.select()"
+                             style="flex:1;box-sizing:border-box;font-size:12px;padding:7px 9px;border:1px solid var(--lt-border-secondary);border-radius:6px;background:var(--lt-fill-quaternary);color:var(--lt-text);">
+                      <button type="button" class="btn small" title="Copy link" aria-label="Copy link"
+                              @click="$store.inst.copyToClipboard($store.inst.asstModal.login_url)" style="flex-shrink:0;display:inline-flex;align-items:center;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+                      <button type="button" class="btn small" @click="$store.inst.regenerateAssistant($store.inst.asstModal)">↻ Regenerate link</button>
+                      <span class="muted" style="font-size:11px;">The previous link (and any open session) stops working immediately.</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:6px;">
+                    <label style="font-size:13px;display:flex;align-items:center;gap:7px;">
+                      <input type="checkbox" :checked="$store.inst.asstModal.is_active" @change="$store.inst.patchAssistant($store.inst.asstModal, { is_active: $event.target.checked })">
+                      Active <span class="muted" style="font-size:11px;">(unchecked = access suspended; the link shows “This link is no longer valid”)</span>
+                    </label>
+                    <label style="font-size:13px;display:flex;align-items:center;gap:7px;">
+                      <input type="checkbox" :checked="$store.inst.asstModal.assignment_management" @change="$store.inst.patchAssistant($store.inst.asstModal, { assignment_management: $event.target.checked })">
+                      Assignment management <span class="muted" style="font-size:11px;">(add/rename/activate assignments, edit assignment files, manage anonymous links)</span>
+                    </label>
+                  </div>
+                  <div class="muted" style="font-size:12px;" x-text="'Last used: ' + ($store.inst.asstModal.last_used_at ? fmtDateTime($store.inst.asstModal.last_used_at) : 'never')"></div>
+                  <div style="font-size:12px;color:var(--lt-primary);min-height:16px;" x-text="$store.inst.asstModalStatus"></div>
+                  <div style="display:flex;gap:8px;align-items:center;border-top:1px solid var(--lt-border-secondary);padding-top:10px;">
+                    <button type="button" class="btn small danger" style="color:#b91c1c;" @click="$store.inst.asstConfirmOpen = true">🗑 Remove assistant</button>
+                    <button type="button" class="btn small" style="margin-left:auto;" @click="$store.inst.closeAsstManage()">Close</button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Modal: confirm removal of a teaching assistant -->
+        <div class="inst-audit-modal-overlay" id="asstConfirmModal" x-show="$store.inst.asstConfirmOpen" x-cloak style="display:flex;z-index:1001;" @click="if ($event.target === $el) $store.inst.asstConfirmOpen = false">
+          <div class="inst-audit-modal" style="max-width:420px;">
+            <div class="inst-audit-modal-header">
+              <div class="inst-audit-modal-title">Remove teaching assistant?</div>
+            </div>
+            <div style="padding:14px 20px 18px;display:flex;flex-direction:column;gap:12px;">
+              <div style="font-size:13px;line-height:1.5;">
+                <span x-text="$store.inst.asstModal ? $store.inst.asstModal.name : ''" style="font-weight:600;"></span>
+                will lose access immediately and the login link is deleted. Tutoring chats they created are kept.
+                This cannot be undone.
+              </div>
+              <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" class="btn small" @click="$store.inst.asstConfirmOpen = false">Cancel</button>
+                <button type="button" class="btn small" style="background:#b91c1c;color:#fff;" @click="$store.inst.removeAssistant()">Remove</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: paste student code -->
+        <div class="inst-audit-modal-overlay" id="tutPasteModal" x-show="$store.inst.tutPasteOpen" x-cloak style="display:flex;" @click="if ($event.target === $el) $store.inst.closeTutPaste()">
+          <div class="inst-audit-modal" style="max-width:680px;">
+            <div class="inst-audit-modal-header">
+              <div class="inst-audit-modal-title">Paste student code</div>
+              <button class="btn small" @click="$store.inst.closeTutPaste()" style="flex-shrink:0;">✕ Close</button>
+            </div>
+            <div style="padding:8px 2px;">
+              <label style="display:block;font-size:12px;color:#6b7280;margin-bottom:4px;">File name (the extension sets the language, e.g. <code>Main.java</code>, <code>solution.py</code>)</label>
+              <input id="tutPasteName" placeholder="student.py" x-model="$store.inst.tutPaste.name" style="width:100%;box-sizing:border-box;font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:8px;">
+              <textarea id="tutPasteContent" rows="14" x-model="$store.inst.tutPaste.content" placeholder="Paste the student's source here…"
+                        style="width:100%;box-sizing:border-box;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;padding:8px;border:1px solid #d1d5db;border-radius:6px;"></textarea>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+                <button class="btn small" @click="$store.inst.submitTutPaste()">Add to chat</button>
+                <span id="tutPasteStatus" class="muted" style="font-size:12px;" x-text="$store.inst.tutPasteStatus"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: tutoring file detail -->
+        <div class="inst-audit-modal-overlay" id="tutFileModal" x-show="$store.inst.tutFileOpen" x-cloak style="display:flex;" @click="if ($event.target === $el) $store.inst.closeTutFile()">
+          <div class="inst-audit-modal" style="max-width:760px;">
+            <div class="inst-audit-modal-header">
+              <div>
+                <div class="inst-audit-modal-title" id="tutFileTitle" x-text="$store.inst.tutFile ? ($store.inst.tutFile.name || 'File') : 'Loading…'"></div>
+                <div class="inst-audit-modal-sub" id="tutFileSub" x-text="$store.inst.tutFileSub()"></div>
+              </div>
+              <button class="btn small" @click="$store.inst.closeTutFile()" style="flex-shrink:0;">✕ Close</button>
+            </div>
+            <div style="padding:8px 2px;">
+              <textarea id="tutFileContent" rows="14" spellcheck="false" x-tab-indent
+                        x-code-editor="$store.inst.tutFile ? { content: $store.inst.tutFileContent, language: $store.inst.tutFile.language, name: $store.inst.tutFile.name } : null"
+                        x-model="$store.inst.tutFileContent" :readonly="$store.inst.tutFile && !$store.inst.tutFile.editable"
+                        style="width:100%;box-sizing:border-box;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;padding:8px;border:1px solid #d1d5db;border-radius:6px;"></textarea>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+                <button class="btn small" id="tutFileSaveBtn" x-show="$store.inst.canEditTutThread && $store.inst.tutFile && $store.inst.tutFile.editable" @click="$store.inst.saveTutFile()">Save</button>
+                <button class="btn small" id="tutFileAnalyzeBtn" x-show="$store.inst.canEditTutThread && $store.inst.tutFile && $store.inst.tutFile.compilable" @click="$store.inst.analyzeTutFile()">Analyze</button>
+                <label id="tutFileStdinWrap" class="muted" style="display:inline-flex;font-size:12px;align-items:center;gap:4px;" x-show="$store.inst.canEditTutThread && $store.inst.tutFile && $store.inst.tutFile.compilable">stdin:
+                  <input id="tutFileStdin" x-model="$store.inst.tutFileStdin" placeholder="(optional)" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;">
+                </label>
+                <button class="btn small" id="tutFileRunBtn" x-show="$store.inst.canEditTutThread && $store.inst.tutFile && $store.inst.tutFile.compilable" @click="$store.inst.runTutFile()">Compile &amp; Run</button>
+                <span id="tutFileStatus" class="muted" style="font-size:12px;" x-text="$store.inst.tutFileStatus"></span>
+              </div>
+              <div id="tutFileResult" style="margin-top:10px;" x-html="$store.inst.tutFileResultHtml"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Rich-content safety layer + shared fetch wrapper + Alpine bridge.
+     (common.js is loaded by base.html; alpine.min.js is loaded last by base.html.) -->
+<script src="{{ static_v('vendor/dompurify/purify.min.js') }}"></script>
+<script src="{{ static_v('js/core/html.js') }}"></script>
+<script src="{{ static_v('js/core/api.js') }}"></script>
+<script src="{{ static_v('js/core/alpine.js') }}"></script>
+
+<!-- Instructor app: imperative carve-outs (core.js) then the Alpine `inst` store. -->
+<script src="{{ static_v('js/pages/instructor/core.js') }}"></script>
+<script src="{{ static_v('js/pages/instructor/store.js') }}"></script>
+<script src="{{ static_v('js/pages/instructor/course_polish.js') }}"></script>
+<script src="{{ static_v('js/pages/instructor/course_split.js') }}"></script>
+<script src="{{ static_v('js/pages/instructor/roster_split.js') }}"></script>
+
+<!-- Deep link from the Courses page: /instructor?class=<id>[&view=assignments|roster]
+     Waits for the store to load its classes, then selects that class (and optionally
+     expands its assignment list). Registered before Alpine starts. -->
+<script>
+  document.addEventListener('alpine:initialized', () => {
+    const params = new URLSearchParams(location.search);
+    const want = params.get('class');
+    if (!want) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      const inst = Alpine.store('inst');
+      const c = inst && (inst.classes || []).find(x => String(x.id) === want);
+      if (c) {
+        clearInterval(timer);
+        // With &assignment=, store.restoreLastAccessed() already selected class + assignment
+        // (cookie seeded in <head>); selecting the class again would clear the assignment.
+        if (params.get('assignment') && inst.currentClassId === c.id) return;
+        inst.selectClass(c.id, c.name);
+        // The assignment list lives in the (now class-less) sidebar, so keep it expanded.
+        if (inst.sidebarExpandedClass !== c.id) inst.toggleClassAsnDropdown(c.id);
+      } else if (++tries > 50) {
+        clearInterval(timer);   // give up after ~10s
+      }
+    }, 200);
+  });
+</script>
+{% endblock %}

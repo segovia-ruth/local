@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ heading }} — LeafTutor</title>
+  <link rel="stylesheet" href="{{ static_v('css/login.css') }}">
+</head>
+<body>
+  <header class="top-header"><div class="brand">🍃 LEAFTUTOR</div></header>
+  <main class="error-page login-card">
+    <h1>{{ heading }}</h1>
+    <p>{{ message }}</p>
+    {% if detail %}<p>{{ detail }}</p>{% endif %}
+    <a href="/">Return to LeafTutor</a>
+  </main>
+</body>
+</html>

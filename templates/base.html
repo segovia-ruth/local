@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}LeafTutor{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+  <link rel="stylesheet" href="{{ static_v('css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ static_v('css/app.css') }}">
+  <link rel="stylesheet" href="{{ static_v('css/customization.css') }}">
+  <!-- NOT deferred: applies saved theme / text size before first paint (no flash). -->
+  <script src="{{ static_v('js/customization.js') }}"></script>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}" x-data data-login-required="{{ 'false' if anon else 'true' }}">
+
+  <div class="navbar">
+
+    <div class="navbar-left">
+      <h1><span class="brand-leaf" aria-hidden="true">🍃</span> LEAFTUTOR</h1>
+      <div class="navbar-subtitle">{% block navbar_subtitle %}{% endblock %}</div>
+    </div>
+
+
+    <div class="navbar-right">
+      {% block navbar_actions %}{% endblock %}
+
+      <!-- Customization: shown for everyone, including anonymous/TA pages -->
+      <button type="button" id="customizationButton" class="customization-button"
+              aria-label="Open customization settings" aria-expanded="false" aria-controls="customizationPanel">
+        <span aria-hidden="true">⚙</span><span class="cz-label">Customization</span>
+      </button>
+
+      {% if not anon %}
+      <!-- Avatar dropdown: Account + Log out -->
+      <div class="user-menu-wrap" x-data="{ open: false }"
+           @click.outside="open = false" @keydown.escape.window="open = false">
+        <button type="button" class="user-profile" id="userProfile"
+                aria-haspopup="menu" aria-controls="userMenu"
+                :aria-expanded="open ? 'true' : 'false'"
+                :aria-label="'Account menu for ' + ($store.ui.user.name || 'user')"
+                @click="open = !open">
+          <div class="user-avatar" id="userAvatar" x-text="$store.ui.user.initials">BB</div>
+        </button>
+
+        <div id="userMenu" class="user-menu" role="menu" x-show="open" x-cloak>
+          <div class="user-menu-head">
+            <div class="user-menu-name" x-text="$store.ui.user.name || 'Loading…'">Loading…</div>
+            <div class="user-menu-email" x-text="$store.ui.user.email"></div>
+          </div>
+          <a class="user-menu-item" role="menuitem" href="/account">Account</a>
+          <a class="user-menu-item danger" role="menuitem" href="/logout">Log out</a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Customization panel (fixed-position, so it lives outside the overflow:hidden navbar) -->
+  <div id="customizationPanel" class="customization-panel" role="dialog" aria-label="Customization" hidden>
+    <div class="customization-header">
+      <h2>Customization</h2>
+      <button type="button" id="closeCustomization" class="customization-close"
+              aria-label="Close customization settings">×</button>
+    </div>
+
+    <div class="customization-option">
+      <label for="themeSelect">Theme</label>
+      <select id="themeSelect" data-pref="theme">
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+        <option value="system">Match system</option>
+      </select>
+    </div>
+
+    <div class="customization-option">
+      <span class="customization-label" id="fontSizeLabel">Text size</span>
+      <div class="font-size-buttons" role="group" aria-labelledby="fontSizeLabel">
+        <button type="button" data-font-size="small">Small</button>
+        <button type="button" data-font-size="medium">Medium</button>
+        <button type="button" data-font-size="large">Large</button>
+        <button type="button" data-font-size="xlarge">Extra</button>
+      </div>
+    </div>
+
+    <div class="customization-option">
+      <span class="customization-label" id="bgLabel">Background</span>
+      <div class="bg-swatches" role="group" aria-labelledby="bgLabel">
+        <button type="button" class="bg-swatch" data-bg="default" aria-label="Default background" title="Default"></button>
+        <button type="button" class="bg-swatch" data-bg="cream"   aria-label="Cream background"   title="Cream"></button>
+        <button type="button" class="bg-swatch" data-bg="mint"    aria-label="Mint background"    title="Mint"></button>
+        <button type="button" class="bg-swatch" data-bg="sky"     aria-label="Sky background"     title="Sky"></button>
+        <button type="button" class="bg-swatch" data-bg="neutral" aria-label="Neutral background"  title="Neutral (soft gray in light, true black in dark)"></button>
+      </div>
+    </div>
+
+    <div class="customization-accessibility">
+      <h3>Accessibility</h3>
+      <label class="a11y-check"><input type="checkbox" data-pref="highContrast"> <span>High contrast</span></label>
+      <label class="a11y-check"><input type="checkbox" data-pref="reduceMotion"> <span>Reduce motion</span></label>
+      <label class="a11y-check"><input type="checkbox" data-pref="underlineLinks"> <span>Underline links</span></label>
+      <label class="a11y-check"><input type="checkbox" data-pref="lineSpacing"> <span>Increase text spacing</span></label>
+      <label class="a11y-check"><input type="checkbox" data-pref="readableFont"> <span>Readable font</span></label>
+      <label class="a11y-check"><input type="checkbox" data-pref="focusRing"> <span>Strong focus outline</span></label>
+    </div>
+
+    <button type="button" id="resetCustomization" class="reset-customization">Reset to Default</button>
+  </div>
+
+  <div id="loadingOverlay" class="loading-overlay" :class="{ show: $store.ui.loading }">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Toast notifications (Alpine-driven; reuses the .notification / .notification.show CSS). -->
+  <template x-for="n in $store.ui.notifications" :key="n.id">
+    <div class="notification" :class="[ n.isError ? 'error' : 'success', { show: n.show } ]" x-text="n.msg"></div>
+  </template>
+
+  <!-- App shell: collapsible left rail + page content -->
+  <div class="app-shell{{ ' app-shell-anon' if anon }}"
+       x-data="{
+         railOpen: (() => { try { const s = localStorage.getItem('lt-rail');
+                             return s ? s === 'open' : window.innerWidth > 700; }
+                           catch (e) { return true; } })(),
+         toggleRail() { this.railOpen = !this.railOpen;
+                        try { localStorage.setItem('lt-rail', this.railOpen ? 'open' : 'closed'); }
+                        catch (e) {} }
+       }"
+       x-init="$nextTick(() => $el.classList.add('rail-ready'))">
+
+    {% if not anon %}
+    <aside class="app-rail" :class="{ collapsed: !railOpen }" aria-label="Main navigation">
+      <button type="button" class="rail-toggle" @click="toggleRail()"
+              :aria-expanded="railOpen ? 'true' : 'false'" aria-controls="railNav"
+              aria-label="Toggle navigation menu">
+        <span aria-hidden="true" x-text="railOpen ? '«' : '»'">«</span>
+      </button>
+
+      <nav id="railNav">
+        {% if current_role == 'student' %}
+        <a class="rail-link {{ 'active' if request.path.startswith('/welcome') or request.path.startswith('/student') }}"
+           href="/welcome" aria-label="Home" title="Home">
+          <span class="rail-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11l9-8 9 8"/>
+              <path d="M5 10v10h14V10"/>
+            </svg>
+          </span>
+          <span class="rail-text">Home</span>
+        </a>
+
+        {% endif %}
+        <a class="rail-link {{ 'active' if request.path.startswith('/courses') }}"
+           href="/courses" aria-label="Courses" title="Courses">
+          <span class="rail-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+          </span>
+          <span class="rail-text">Courses</span>
+        </a>
+
+
+        <a class="rail-link {{ 'active' if request.path.startswith('/account') }}"
+           href="/account" aria-label="Account" title="Account">
+          <span class="rail-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </span>
+          <span class="rail-text">Account</span>
+        </a>
+
+        <a class="rail-link {{ 'active' if request.path.startswith('/calendar') }}"
+           href="/calendar" aria-label="Calendar" title="Calendar">
+          <span class="rail-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="4" rx="2"/>
+              <path d="M16 2v4M8 2v4M3 10h18"/>
+            </svg>
+          </span>
+          <span class="rail-text">Calendar</span>
+        </a>
+
+        <a class="rail-link {{ 'active' if request.path.startswith('/help') }}"
+           href="/help" aria-label="Help" title="Help">
+          <span class="rail-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <path d="M12 17h.01"/>
+            </svg>
+          </span>
+          <span class="rail-text">Help</span>
+        </a>
+      </nav>
+    </aside>
+    {% endif %}
+
+    <main class="app-main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script src="{{ static_v('js/common.js') }}"></script>
+
+  {% block extra_scripts %}{% endblock %}
+
+  <!-- Alpine.js MUST load last: it auto-starts on DOMContentLoaded and fires `alpine:init`,
+       by which point every page script above has already registered its stores/components. -->
+  <script defer src="{{ static_v('vendor/alpine/alpine.min.js') }}"></script>
+</body>
+</html>

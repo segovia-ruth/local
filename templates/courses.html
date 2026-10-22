@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Courses · LeafTutor{% endblock %}
+{% block navbar_subtitle %}Courses{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+{% endblock %}
+
+{#
+  Expects `courses` from the route: a list of dicts, e.g.
+  { "name": "Intro to Python", "code": "CS 101", "term": "Fall 2026",
+    "instructor": "Dr. Smith", "assignments": 4,
+    "url": "/courses/12", "assignments_url": "/courses/12#assignments" }
+  Only `name` is required; every other key is optional.
+  `is_student` (bool): when true, the add-course controls and script are not rendered.
+#}
+{% block content %}
+<div class="page-scroll"{% if not is_student %} x-data="addCourse()"{% endif %}>
+  <div class="page-inner">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <h1 class="page-title">Courses</h1>
+        <p class="page-sub">{{ "Your enrolled courses." if is_student else "Your enrolled and teaching courses." }}</p>
+      </div>
+      {% if not is_student %}
+      <button type="button" id="addCourseBtn" @click="open = !open" :aria-expanded="open ? 'true' : 'false'"
+              aria-controls="addCoursePanel">+ Add course</button>
+      {% endif %}
+    </div>
+
+    {% if not is_student %}
+    <section class="panel" id="addCoursePanel" x-show="open" x-cloak>
+      <h2>New course</h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <label style="flex:2 1 220px;font-size:12px;color:var(--lt-text-tertiary);">Course name
+          <input type="text" x-model="name" x-ref="nameInput" placeholder="e.g. Intro to Python"
+                 @keydown.enter.prevent="create()" style="display:block;width:100%;box-sizing:border-box;margin-top:4px;">
+        </label>
+        <label style="flex:1 1 160px;font-size:12px;color:var(--lt-text-tertiary);">Term
+          <input type="text" x-model="term" placeholder="e.g. Fall 2026"
+                 @keydown.enter.prevent="create()" style="display:block;width:100%;box-sizing:border-box;margin-top:4px;">
+        </label>
+        <button type="button" :disabled="busy" @click="create()" x-text="busy ? 'Creating…' : 'Create'"></button>
+        <button type="button" class="btn-ghost" @click="open = false">Cancel</button>
+      </div>
+      <p x-show="error" x-text="error" role="alert" style="color:var(--lt-error-text);margin:10px 0 0;"></p>
+    </section>
+    {% endif %}
+
+    {% if courses %}
+    <div class="course-grid">
+      {% for c in courses %}
+        <div class="course-card">
+          {% if c.code %}<div class="course-code">{{ c.code }}</div>{% endif %}
+          <div class="course-name">
+            {% if c.url %}<a class="course-link" href="{{ c.url }}">{{ c.name }}</a>{% else %}{{ c.name }}{% endif %}
+          </div>
+          {% if c.instructor or c.term %}
+            <div class="course-meta">
+              {{ c.instructor or '' }}{% if c.instructor and c.term %} · {% endif %}{{ c.term or '' }}
+            </div>
+          {% endif %}
+          {% if c.assignments is defined and c.assignments is not none %}
+            {% set label = c.assignments ~ ' assignment' ~ ('' if c.assignments == 1 else 's') %}
+            {% if c.assignments_url %}
+              <a class="course-badge" href="{{ c.assignments_url }}">{{ label }}</a>
+            {% else %}
+              <span class="course-badge">{{ label }}</span>
+            {% endif %}
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="course-empty">
+      {% if is_student %}You haven't been added to a course yet. Ask your instructor.{% else %}You aren't in any courses yet.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if not is_student %}
+<script>
+  // Registered before Alpine starts (Alpine loads last in base.html).
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('addCourse', () => ({
+      open: false, name: '', term: '', busy: false, error: '',
+      async create() {
+        if (this.busy) return;
+        if (!this.name.trim()) { this.error = 'Please enter a course name.'; return; }
+        this.busy = true; this.error = '';
+        try {
+          const res = await fetch('/courses/new', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ name: this.name, term: this.term })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) { this.error = data.error || 'Could not create the course.'; this.busy = false; return; }
+          location.reload();   // the list is rendered server-side; reload to show the new card
+        } catch (e) {
+          this.error = 'Network error. Please try again.'; this.busy = false;
+        }
+      }
+    }));
+  });
+</script>
+{% endif %}
+{% endblock %}

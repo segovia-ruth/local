@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — LeafTutor</title>
+  <link rel="icon" href="{{ static_v('favicon.svg') }}">
+  <link rel="stylesheet" href="{{ static_v('css/login.css') }}">
+  <script defer src="{{ static_v('js/pages/login.js') }}"></script>
+</head>
+<body>
+  <header class="top-header">
+    <div class="brand"><span class="brand-leaf" aria-hidden="true">🍃</span><span>LEAFTUTOR</span></div>
+  </header>
+  <main class="page-container">
+    <section class="intro-section">
+      <div class="intro-label">LEARN • BUILD • UNDERSTAND</div>
+      <h1 class="intro-title">Grow Your Learning.</h1>
+      <p class="intro-description">LeafTutor helps you learn, build, and understand through an interactive coding experience designed around your learning needs.</p>
+      <div class="feature-list">
+        <article class="feature-card">
+          <div class="feature-number">01</div>
+          <h2 class="feature-title">TEACHES</h2>
+          <p class="feature-description">Get guidance that helps you understand concepts instead of simply receiving an answer.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-number">02</div>
+          <h2 class="feature-title">GROUNDED</h2>
+          <p class="feature-description">Work with course materials and information relevant to your learning environment.</p>
+        </article>
+        <article class="feature-card">
+          <div class="feature-number">03</div>
+          <h2 class="feature-title">COMPILE • RUN • DEBUG</h2>
+          <p class="feature-description">Practice coding through an interactive environment designed for hands-on learning.</p>
+        </article>
+      </div>
+    </section>
+    <section class="login-section" aria-labelledby="loginHeading">
+      <div class="login-card">
+        <h2 class="login-heading" id="loginHeading">Welcome!</h2>
+        <p class="login-subheading">Sign in to grow your learning.</p>
+        <form id="loginForm" method="POST" action="/login">
+          <div class="form-group">
+            <label for="username" class="form-label">Username or email</label>
+            <input type="text" id="username" name="username" class="form-input"
+                   placeholder="Enter your username" autocomplete="username" required>
+          </div>
+          <div class="form-group">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" id="password" name="password" class="form-input"
+                   placeholder="Enter your password" autocomplete="current-password" required>
+          </div>
+          <p id="loginError" class="login-error" role="alert" {% if not error %}hidden{% endif %}>{{ error or '' }}</p>
+          <button type="submit" class="login-button">Sign in</button>
+        </form>
+        <p class="new-user">Use your LeafTutor account to continue.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Welcome · LeafTutor{% endblock %}
+{% block navbar_subtitle %}Welcome{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">{% endblock %}
+
+{% block content %}
+<div class="page-scroll"><div class="page-inner">
+  <h1 class="page-title">Welcome, {{ first }} 🍃</h1>
+  <p class="page-sub">Your tutor for programming assignments. It gives hints and explanations, not just answers.</p>
+
+  <section class="panel">
+    <h2>Your classes</h2>
+    {% if classes %}
+      {% for c in classes %}
+        <a class="item" href="/courses/{{ c.id|urlencode }}"
+           style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;">
+          <div style="flex:1;min-width:0;">
+            <strong>{{ c.name }}</strong>
+            <span class="muted">{% if c.term %}{{ c.term }} · {% endif %}{{ c.instructor }}</span>
+          </div>
+          <span class="muted" aria-hidden="true">→</span>
+        </a>
+      {% endfor %}
+    {% else %}
+      <p class="muted">You haven't been added to a class yet. Ask your instructor.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>How it works</h2>
+    <ol>
+      <li>Open an assignment from your class.</li>
+      <li>Paste your code or ask a question.</li>
+      <li>Run your code and ask for help with any errors.</li>
+    </ol>
+    <a class="btn" href="/student">Start tutoring →</a>
+  </section>
+</div></div>
+{% endblock %}

@@ -1,0 +1,4689 @@
+/* ══════════════════════════════════════════════════════════════
+   LeafTutor — app.css
+   Component styles. Light theme, neutral surfaces + blue accent
+   (LobeChat-inspired). All colors/radii/shadows come from
+   tokens.css (--lt-*). Loaded after tokens.css.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Alpine.js: hide elements with x-cloak until Alpine has initialized, so
+   un-evaluated x-for / x-show markup doesn't flash before hydration. */
+[x-cloak] {
+  display: none !important;
+}
+
+/* ─────────────────── 1. Legacy aliases → tokens ─────────────────
+   Older rules (and the verbatim-moved blocks in §19–20) reference
+   these names. Map them onto the token system so they recolor too.
+   (Layout dimensions --nav-h/--g/--handle-w/--rail-gap live in tokens.css.) */
+:root {
+  --card: var(--lt-bg-container);
+  --muted: var(--lt-text-tertiary);
+  --green: var(--lt-primary);
+  --green-dark: var(--lt-primary-active);
+  --mint: var(--lt-primary-border);
+  --danger: var(--lt-error);
+  --border-soft: var(--lt-border-secondary);
+}
+
+/* ─────────────────── 2. Reset + Base ───────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  font-family: var(--lt-font);
+  font-size: var(--lt-fz);
+  line-height: var(--lt-lh);
+  background: var(--lt-bg-layout);
+  color: var(--lt-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--lt-primary-bg);
+  color: var(--lt-text);
+}
+
+::-moz-selection {
+  background: var(--lt-primary-bg);
+  color: var(--lt-text);
+}
+
+a {
+  color: var(--lt-primary);
+}
+
+a:hover {
+  color: var(--lt-primary-hover);
+}
+
+/* Preflight-equivalent base reset (replaces the removed Tailwind CDN).
+   Keeps the prior look: unstyled headings, zeroed list/heading margins. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+}
+
+p,
+figure,
+blockquote,
+dl,
+dd,
+pre {
+  margin: 0;
+}
+
+ol,
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 100%;
+  line-height: inherit;
+  color: inherit;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/* ─────────────────── 3. @keyframes ────────────────────────── */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes messageSlide {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes typingDot {
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: .5;
+  }
+
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-8px);
+  }
+
+  75% {
+    transform: translateX(8px);
+  }
+}
+
+/* ─────────── 4. Loading Overlay (JS-toggled .show) ─────────── */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.loading-overlay.show {
+  display: flex !important;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--lt-primary-bg);
+  border-top-color: var(--lt-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-overlay .spinner {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .2));
+}
+
+/* Small spinner for inline use (e.g. the chat "thinking" bubble) */
+.spinner-sm {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+  vertical-align: middle;
+}
+
+.chat-thinking .message-content {
+  padding: 8px 4px;
+}
+
+/* ─────────── 5. Account Menu (JS-toggled .show) ────────────── */
+.account-menu {
+  position: fixed;
+  top: var(--nav-h);
+  right: 24px;
+  width: 360px;
+  max-width: 95vw;
+  background: var(--lt-bg-elevated);
+  color: var(--lt-text);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-xl);
+  box-shadow: var(--lt-shadow);
+  padding: 14px;
+  z-index: 1000;
+  display: none;
+  font-family: inherit;
+  max-height: min(70vh, 600px);
+  overflow: auto;
+}
+
+.account-menu.show {
+  display: block;
+}
+
+.account-menu .am-head {
+  margin-bottom: 6px;
+}
+
+.account-menu .am-title {
+  font-weight: 600;
+  color: var(--lt-text);
+}
+
+.account-menu .am-sub {
+  color: var(--lt-text-tertiary);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.account-menu .am-section {
+  background: var(--lt-fill-quaternary);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-lg);
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.account-menu .am-section-title {
+  font-weight: 600;
+  color: var(--lt-text);
+  margin-bottom: 8px;
+}
+
+.account-menu .am-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.account-menu input[type="text"] {
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius);
+  padding: 8px 12px;
+  width: 100%;
+}
+
+.account-menu .am-btn {
+  padding: 8px 14px;
+  border-radius: var(--lt-radius);
+  border: none;
+  cursor: pointer;
+  color: var(--lt-text-on-primary);
+  background: var(--lt-primary);
+  font-weight: 600;
+}
+
+.account-menu .am-btn:hover {
+  background: var(--lt-primary-hover);
+}
+
+.account-menu .am-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-menu .am-list .am-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius);
+  padding: 8px;
+}
+
+.account-menu .am-item .am-grow {
+  flex: 1;
+}
+
+.account-menu .am-item .am-muted {
+  color: var(--lt-text-tertiary);
+  font-size: 12px;
+}
+
+.account-menu .am-footer {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.account-menu .am-logout {
+  color: var(--lt-error);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.account-menu .am-logout:hover {
+  color: var(--lt-error-active);
+}
+
+@media (max-width: 900px) {
+  .account-menu {
+    right: 12px;
+    left: 12px;
+    width: auto;
+  }
+}
+
+/* ─────────── 6. Notification Toast (JS-toggled .show) ──────── */
+.notification {
+  position: fixed;
+  top: 84px;
+  right: 30px;
+  padding: 12px 18px;
+  border-radius: var(--lt-radius-lg);
+  color: #fff;
+  font-weight: 500;
+  font-size: 14px;
+  box-shadow: var(--lt-shadow);
+  z-index: 10000;
+  opacity: 0;
+  transform: translateX(400px);
+  transition: all 0.3s ease;
+}
+
+.notification.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.notification.success {
+  background: var(--lt-success);
+}
+
+.notification.error {
+  background: var(--lt-error);
+}
+
+/* ─────────────────── 7. Navbar ─────────────────────────────── */
+.navbar {
+  background: var(--lt-bg-elevated);
+  padding: 0 18px !important;
+  color: var(--lt-text);
+  box-shadow: none;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  overflow: hidden;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  display: flex !important;
+  justify-content: space-between;
+  align-items: center !important;
+  min-height: var(--nav-h);
+  height: var(--nav-h) !important;
+}
+
+.navbar-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--lt-text);
+  letter-spacing: -.01em;
+}
+
+.navbar h1 .brand-leaf {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 1em;
+  line-height: 1;
+  vertical-align: -0.08em;
+}
+
+.navbar-subtitle {
+  font-size: 12px;
+  margin-top: 2px;
+  font-weight: 400;
+  color: var(--lt-text-tertiary);
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+}
+
+/* ─────────────────── 8. User Profile (avatar dropdown) ─────── */
+.user-menu-wrap {
+  position: relative;
+}
+
+/* The trigger is a <button>: undo the global solid-blue button style */
+.user-profile {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: none;
+  overflow: visible;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.user-profile:hover,
+.user-profile:active,
+.user-profile[aria-expanded="true"] {
+  background: var(--lt-fill-tertiary);
+  color: inherit;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--lt-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--lt-text-on-primary);
+}
+
+/* Fixed (not absolute) so the navbar's overflow:hidden can't clip it */
+.user-menu {
+  position: fixed;
+  top: calc(var(--nav-h) - 4px);
+  right: 16px;
+  width: 240px;
+  max-width: calc(100vw - 32px);
+  padding: 6px;
+  background: var(--lt-bg-elevated);
+  color: var(--lt-text);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-lg);
+  box-shadow: var(--lt-shadow);
+  z-index: 1000;
+}
+
+.user-menu-head {
+  padding: 8px 12px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+}
+
+.user-menu-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--lt-text);
+}
+
+.user-menu-email {
+  font-size: 12px;
+  color: var(--lt-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-item {
+  display: block;
+  padding: 8px 12px;
+  border-radius: var(--lt-radius);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lt-text);
+  text-decoration: none;
+}
+
+.user-menu-item:hover,
+.user-menu-item:focus-visible {
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-text);
+}
+
+.user-menu-item.danger {
+  color: var(--lt-error-text);
+}
+
+.user-menu-item.danger:hover,
+.user-menu-item.danger:focus-visible {
+  background: var(--lt-error-bg);
+  color: var(--lt-error-text);
+}
+
+/* ─────────────────── Left nav rail ─────────────────── */
+.app-shell {
+  display: flex;
+  height: calc(100vh - var(--nav-h));
+  min-height: 0;
+  position: relative;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* anonymous / login / TA pages: no rail, wrappers don't affect layout */
+.app-shell-anon,
+.app-shell-anon>.app-main {
+  display: contents;
+}
+
+.app-rail {
+  flex: 0 0 var(--rail-w);
+  width: var(--rail-w);
+  height: 100%;
+  background: var(--lt-bg-container);
+  border-right: 1px solid var(--lt-border-secondary);
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 40;
+}
+
+.app-rail.collapsed {
+  flex-basis: var(--rail-w-collapsed);
+  width: var(--rail-w-collapsed);
+}
+
+.rail-ready .app-rail {
+  transition: width .2s ease, flex-basis .2s ease;
+}
+
+.app-rail nav {
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* override the global blue filled <button> style */
+.rail-toggle,
+.rail-link {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  color: var(--lt-text-secondary);
+  border: 0;
+  box-shadow: none;
+  border-radius: var(--lt-radius);
+  font-weight: 500;
+  font-size: var(--lt-fz);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rail-toggle {
+  width: 100%;
+  justify-content: flex-end;
+  padding: 12px 18px;
+  border-radius: 0;
+  font-size: 16px;
+}
+
+.rail-link {
+  width: 100%;
+  gap: 12px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.rail-toggle:hover,
+.rail-toggle:active,
+.rail-link:hover,
+.rail-link:active,
+.rail-link:focus-visible {
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-text);
+}
+
+.rail-link.active,
+.rail-link.active:hover {
+  background: var(--lt-primary-bg);
+  color: var(--lt-primary);
+}
+
+.rail-icon {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.rail-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.app-rail.collapsed .rail-text {
+  display: none;
+}
+
+.app-rail.collapsed .rail-toggle {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+/* Phones: rail overlays the page instead of squeezing it */
+@media (max-width: 700px) {
+  .app-rail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    flex: none;
+  }
+
+  .app-rail:not(.collapsed) {
+    box-shadow: var(--lt-shadow);
+  }
+
+  .app-shell:not(.app-shell-anon)>.app-main {
+    margin-left: var(--rail-w-collapsed);
+  }
+}
+
+/* ─────────────────── 9. Shared Sidebar ─────────────────────── */
+.sidebar .sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar:not(.collapsed) .sidebar-header {
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  background: transparent;
+}
+
+.sidebar.collapsed .sidebar-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+}
+
+.sidebar.collapsed .sidebar-header h3,
+.sidebar.collapsed .add-project-btn {
+  display: none !important;
+}
+
+.sidebar .sidebar-controls {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.sidebar.collapsed .project-info,
+.sidebar.collapsed .project-list {
+  display: none;
+}
+
+.sidebar.collapsed .collapse-btn {
+  width: 36px;
+  height: 36px;
+}
+
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--lt-text);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sidebar .collapse-btn {
+  background: transparent;
+  color: var(--lt-text-secondary);
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius);
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.sidebar .collapse-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--lt-fill-tertiary);
+  border-color: var(--lt-border);
+}
+
+/* ─────────────────── 10. Project / Class Items ──────────────── */
+.add-project-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  border-radius: var(--lt-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lt-primary);
+  box-shadow: none;
+  border: none;
+  color: var(--lt-text-on-primary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.add-project-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--lt-primary-hover);
+}
+
+.project-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.project-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.project-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.project-list::-webkit-scrollbar-thumb {
+  background: var(--lt-fill);
+  border-radius: 10px;
+}
+
+.project-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  border-radius: var(--lt-radius);
+  cursor: pointer;
+  transition: background .15s ease;
+  background: transparent;
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.project-item:hover {
+  background: var(--lt-fill-tertiary);
+  border-color: transparent;
+  transform: none;
+}
+
+.project-item.active {
+  background: var(--lt-primary-bg);
+  border-color: var(--lt-primary-border);
+  box-shadow: none;
+}
+
+.project-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--lt-radius);
+  background: var(--lt-fill-secondary);
+  color: var(--lt-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.project-item.active .project-icon {
+  background: var(--lt-primary);
+  color: var(--lt-text-on-primary);
+}
+
+.project-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--lt-text);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-course {
+  font-size: 12px;
+  color: var(--lt-text-secondary);
+  font-weight: 500;
+  margin-bottom: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-meta {
+  font-size: 12px;
+  color: var(--lt-text-tertiary);
+}
+
+.empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--lt-text-tertiary);
+  font-size: 14px;
+  line-height: 1.6;
+  background: var(--lt-fill-quaternary);
+  border-radius: var(--lt-radius-lg);
+  border: 1px dashed var(--lt-border);
+  margin: 10px;
+}
+
+/* ─────────────────── 11. Context Menu ──────────────────────── */
+.context-menu,
+.ctx-menu {
+  position: fixed;
+  background: var(--lt-bg-elevated);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-lg);
+  box-shadow: var(--lt-shadow);
+  padding: 6px;
+  z-index: 4000;
+  min-width: 160px;
+}
+
+.ctx-menu {
+  min-width: 180px;
+  color: var(--lt-text);
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: 500 14px/1.2 var(--lt-font);
+  color: var(--lt-text);
+  border-radius: var(--lt-radius);
+}
+
+.context-menu-item:hover {
+  background: var(--lt-fill-tertiary);
+}
+
+.context-menu-item:active {
+  background: var(--lt-fill-secondary);
+}
+
+/* ─────────────────── 12. Buttons ───────────────────────────── */
+button {
+  padding: 8px 16px;
+  background: var(--lt-primary);
+  color: var(--lt-text-on-primary);
+  border: none;
+  border-radius: var(--lt-radius);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: background 0.15s ease;
+  box-shadow: none;
+  position: relative;
+  overflow: hidden;
+}
+
+button:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--lt-primary-hover);
+}
+
+button:active {
+  transform: none;
+  background: var(--lt-primary-active);
+}
+
+.btn-text,
+.btn-icon {
+  position: relative;
+  z-index: 1;
+}
+
+.btn-icon {
+  margin-left: 5px;
+  font-size: 18px;
+}
+
+.clear-btn,
+.icon-btn,
+.collapse-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  background: transparent;
+  color: var(--lt-text-secondary);
+  border: 1px solid var(--lt-border);
+  box-shadow: none;
+}
+
+.collapse-btn {
+  min-width: 32px;
+  padding: 7px 12px;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.clear-btn:hover,
+.icon-btn:hover,
+.collapse-btn:hover {
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-text);
+  transform: none;
+}
+
+button.small,
+.btn.small {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: var(--lt-radius);
+  box-shadow: none;
+}
+
+.download-btn {
+  border-radius: var(--lt-radius);
+  width: auto;
+  height: auto;
+  padding: 6px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  background-color: var(--lt-primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.download-btn:hover {
+  background-color: var(--lt-primary-hover);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--lt-primary);
+  outline-offset: 1px;
+}
+
+button,
+input,
+select,
+.CodeMirror {
+  transition: border-color .15s, box-shadow .15s;
+}
+
+/* ─────────────────── 13. Chat & Editor Panels ───────────────── */
+.chat,
+.editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--lt-bg-container);
+  border-radius: var(--lt-radius-lg);
+  border: 1px solid var(--lt-border-secondary);
+  box-shadow: var(--lt-shadow-secondary);
+  padding: 16px;
+  overflow: hidden;
+  transition: none;
+  min-width: 0;
+}
+
+.chat.collapsed,
+.editor.collapsed {
+  flex: 0 0 auto;
+  min-width: 200px;
+}
+
+.chat:hover,
+.editor:hover {
+  transform: none;
+  box-shadow: var(--lt-shadow-secondary);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  padding-bottom: 10px;
+}
+
+.instructor-page .section-header {
+  margin-bottom: 10px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--lt-text);
+  font-weight: 600;
+}
+
+.section-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.section-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  position: relative;
+}
+
+.chat h2,
+.editor h2 {
+  margin: 0 0 14px;
+  font-size: 16px;
+  color: var(--lt-text);
+  border-bottom: 1px solid var(--lt-border-secondary);
+  padding-bottom: 10px;
+  font-weight: 600;
+}
+
+/* ─────────────────── Orphan conversation title bar ─────────────────── */
+.orphan-title-bar {
+  padding: 4px 2px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+}
+
+.orphan-title-display {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lt-text-secondary);
+  padding: 3px 7px;
+  border-radius: var(--lt-radius-sm);
+  border: 1px solid transparent;
+  cursor: text;
+  transition: border-color .15s, background .15s;
+}
+
+.orphan-title-display:hover {
+  border-color: var(--lt-border);
+  background: var(--lt-fill-tertiary);
+}
+
+.orphan-title-input {
+  width: 100%;
+  max-width: 420px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--lt-text);
+  padding: 3px 7px;
+  border: 1px solid var(--lt-primary);
+  border-radius: var(--lt-radius-sm);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--lt-primary-bg);
+}
+
+/* ─────────────────── 14. Messages ──────────────────────────── */
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 4px;
+  background: transparent;
+  border-radius: 0;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: none;
+}
+
+#messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+#messages::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+#messages::-webkit-scrollbar-thumb {
+  background: var(--lt-fill);
+  border-radius: 10px;
+}
+
+#messages::-webkit-scrollbar-thumb:hover {
+  background: var(--lt-fill-secondary);
+}
+
+.message {
+  display: flex;
+  margin: 2px 0;
+  animation: messageSlide 0.25s ease-out;
+}
+
+.message-content {
+  padding: 8px 12px;
+  border-radius: var(--lt-radius-lg);
+  max-width: 76%;
+  word-wrap: break-word;
+  line-height: 1.6;
+  box-shadow: none;
+}
+
+.message.user {
+  justify-content: flex-end;
+}
+
+.message.user .message-content {
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-text);
+}
+
+.message.ai {
+  justify-content: flex-start;
+}
+
+.message.ai .message-content {
+  background: transparent;
+  color: var(--lt-text);
+  border: none;
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.message-content pre,
+.message-content code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.typing .message-content {
+  padding: 8px 4px;
+}
+
+.typing-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.typing-dots span {
+  width: 7px;
+  height: 7px;
+  background: var(--lt-text-tertiary);
+  border-radius: 50%;
+  display: inline-block;
+  animation: typingDot 1.4s infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* ─────────────────── 15. Input Row ─────────────────────────── */
+/* Closed (view-only) conversation notice shown above the composer */
+.session-closed-banner {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: var(--lt-warning-bg);
+  border: 1px solid var(--lt-warning-border);
+  color: var(--lt-warning-text);
+  border-radius: var(--lt-radius-lg);
+  font-size: 13px;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  align-items: center;
+}
+
+.input-row textarea:disabled,
+.input-row button:disabled,
+.upload-inline-btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.upload-inline-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: transparent;
+  color: var(--lt-text-secondary);
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-lg);
+  cursor: pointer;
+  font-size: 22px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.upload-inline-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-text);
+}
+
+.upload-inline-btn:active {
+  transform: none;
+}
+
+#userInput {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-lg);
+  font-size: 14px;
+  transition: all 0.15s ease;
+  outline: none;
+  background: var(--lt-bg-container);
+  color: var(--lt-text);
+}
+
+#userInput:focus {
+  border-color: var(--lt-primary);
+  box-shadow: 0 0 0 2px var(--lt-primary-bg);
+}
+
+/* Composer is a <textarea> that auto-grows (JS caps the height at 160px). */
+#userInput {
+  resize: none;
+  line-height: 1.4;
+  min-height: 42px;
+  max-height: 160px;
+  overflow-y: auto;
+  font-family: inherit;
+}
+
+/* ─────────────────── 16. Editor / Code / Output ─────────────── */
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.editor-header h2 {
+  margin: 0;
+  border: none;
+  padding: 0;
+}
+
+.editor-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  flex-wrap: wrap;
+}
+
+.editor-controls label {
+  font-weight: 500;
+  color: var(--lt-text-secondary);
+}
+
+.editor-controls select {
+  padding: 6px 12px;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius);
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+  background: var(--lt-bg-container);
+  color: var(--lt-text);
+}
+
+.editor-controls select:focus {
+  border-color: var(--lt-primary);
+  box-shadow: 0 0 0 2px var(--lt-primary-bg);
+}
+
+.CodeMirror {
+  flex: 1;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-lg);
+  font-size: 14px;
+  font-family: var(--lt-font-mono);
+  margin-bottom: 14px;
+  overflow: auto;
+  box-shadow: none;
+  max-width: 100%;
+}
+
+.CodeMirror-focused {
+  border-color: var(--lt-primary);
+  box-shadow: 0 0 0 2px var(--lt-primary-bg);
+}
+
+.run-btn {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 12px;
+  font-size: 15px;
+  background: var(--lt-primary);
+  box-shadow: none;
+}
+
+.run-btn:hover {
+  box-shadow: none;
+  background: var(--lt-primary-hover);
+}
+
+.output-header {
+  font-weight: 600;
+  color: var(--lt-text-secondary);
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+#output {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 14px;
+  border-radius: var(--lt-radius-lg);
+  min-height: 120px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: var(--lt-font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  border: 1px solid #2b2b2b;
+  box-shadow: none;
+}
+
+#output::-webkit-scrollbar {
+  width: 8px;
+}
+
+#output::-webkit-scrollbar-track {
+  background: #2d2d2d;
+  border-radius: 10px;
+}
+
+#output::-webkit-scrollbar-thumb {
+  background: #4b4b4b;
+  border-radius: 10px;
+}
+
+/* ─────────────────── 17. Status / Error text ───────────────── */
+.success-text {
+  color: var(--lt-success);
+  background: var(--lt-success-bg);
+}
+
+.error-text {
+  color: var(--lt-error);
+  background: var(--lt-error-bg);
+}
+
+.warning-text {
+  color: var(--lt-warning-text);
+  background: var(--lt-warning-bg);
+}
+
+.info-text {
+  color: var(--lt-primary);
+  background: var(--lt-primary-bg);
+}
+
+.error-message {
+  background: var(--lt-error-bg);
+  color: var(--lt-error-text);
+  padding: 12px;
+  border-radius: var(--lt-radius);
+  border-left: 3px solid var(--lt-error);
+  margin: 10px 0;
+  animation: messageSlide 0.25s ease-out;
+}
+
+/* ─────────────────── 18. Misc Shared Components ────────────── */
+.scroll-bottom {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--lt-bg-elevated);
+  color: var(--lt-text-secondary);
+  border: 1px solid var(--lt-border);
+  cursor: pointer;
+  box-shadow: var(--lt-shadow-secondary);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  z-index: 10;
+}
+
+.scroll-bottom:hover {
+  background: var(--lt-fill-tertiary);
+  transform: none;
+}
+
+.flashes {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.flash {
+  margin: 10px 0;
+  padding: 10px 14px;
+  border-radius: var(--lt-radius);
+  font-weight: 500;
+  text-align: center;
+  display: block;
+}
+
+.flash.error {
+  background: var(--lt-error-bg);
+  color: var(--lt-error-text);
+}
+
+.flash.success {
+  background: var(--lt-success-bg);
+  color: #237804;
+}
+
+.files-panel {
+  margin-bottom: 12px;
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-lg);
+  padding: 10px;
+  background: var(--lt-fill-quaternary);
+}
+
+.files-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.files-panel-title {
+  font-weight: 600;
+  color: var(--lt-text);
+}
+
+.files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.files-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 6px;
+  align-items: center;
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius);
+  padding: 8px 10px;
+}
+
+.files-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-scope {
+  font-size: 12px;
+  color: var(--lt-text-tertiary);
+}
+
+.files-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--lt-text-tertiary);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius);
+}
+
+.item:hover {
+  box-shadow: var(--lt-shadow-secondary);
+}
+
+.item.active {
+  border-color: var(--lt-primary-border);
+  box-shadow: none;
+  background: var(--lt-primary-bg);
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.grow .title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lt-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grow .meta {
+  font-size: 12px;
+  color: var(--lt-text-tertiary);
+  margin-top: 2px;
+}
+
+.empty {
+  padding: 8px 10px;
+  color: var(--lt-text-tertiary);
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#uploadStatus {
+  margin-top: 8px;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: var(--lt-radius);
+  transition: all 0.3s;
+}
+
+.section-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.section-content::-webkit-scrollbar-thumb {
+  background: var(--lt-fill);
+  border-radius: 10px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   INSTRUCTOR-SPECIFIC
+   ══════════════════════════════════════════════════════════════ */
+body.instructor-page {
+  margin: 0;
+  background: var(--lt-bg-layout);
+  color: var(--lt-text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-layout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  /* Cap the single row at the container height. Without this the implicit row is
+     auto-sized and GROWS with content once it exceeds one screen, so every height:100%
+     descendant (container → split → sections → tab panels → audit/tutoring/file bodies)
+     overgrows and the inner overflow:auto never gets a constrained height to scroll in —
+     the excess is just clipped by overflow:hidden below. minmax(0,1fr) fixes the row to
+     the container height so overflow happens inside the scroll panels instead. */
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: var(--g);
+  align-items: stretch;
+  padding: var(--g);
+  box-sizing: border-box;
+  height: calc(100vh - var(--nav-h));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.instructor-page .sidebar {
+  width: 280px;
+  min-width: 280px;
+  border-radius: var(--lt-radius-lg);
+  background: var(--card);
+  border: 1px solid var(--lt-border-secondary);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.instructor-page .sidebar.collapsed {
+  width: 60px !important;
+  min-width: 60px !important;
+  overflow: hidden;
+}
+
+.main-layout>.container {
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0 var(--g) 0 0;
+}
+
+#rosterAssignSplit.lt-split {
+  padding-right: var(--g);
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  width: 100%;
+  gap: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+#rosterSection,
+#assignSection {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 50%;
+  min-width: 260px;
+  height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+  background: var(--card);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-lg);
+  margin: 0;
+}
+
+#assignSection {
+  overflow: hidden;
+  margin-right: 0;
+  max-width: 100%;
+}
+
+#rosterAssignSplit .lt-handle {
+  position: relative;
+  width: var(--handle-w);
+  min-width: var(--handle-w);
+  margin: 0 8px;
+  cursor: col-resize;
+  border-radius: var(--lt-radius);
+  background: var(--lt-fill-secondary);
+  border: 1px solid var(--lt-border-secondary);
+  box-shadow: none;
+}
+
+#rosterAssignSplit .lt-handle::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 5px;
+  right: 5px;
+  border-radius: 8px;
+  background:
+    linear-gradient(var(--lt-border), var(--lt-border)) left 5px / 2px 100% no-repeat,
+    linear-gradient(var(--lt-border), var(--lt-border)) right 5px / 2px 100% no-repeat;
+  opacity: .9;
+}
+
+#rosterAssignSplit .lt-handle::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: -6px;
+  right: -6px;
+}
+
+#rosterAssignSplit .lt-handle:hover {
+  border-color: var(--lt-border);
+  background: var(--lt-fill);
+}
+
+body.lt-dragging,
+body.lt-dragging * {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--lt-radius-lg);
+  border: 1px solid var(--lt-border-secondary);
+  padding: 14px;
+  transition: box-shadow .18s ease;
+}
+
+.card:hover {
+  transform: none;
+  box-shadow: var(--lt-shadow-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.row {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+}
+
+.row input {
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius);
+  padding: 8px 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.dropzone {
+  border: 1px dashed var(--lt-border);
+  background: var(--lt-fill-quaternary);
+  border-radius: var(--lt-radius-lg);
+  padding: 18px;
+  text-align: center;
+  color: var(--lt-text-secondary);
+}
+
+.dropzone.dragover {
+  background: var(--lt-primary-bg);
+  border-color: var(--lt-primary);
+}
+
+/* Compact variant — used in the assignment-files panel so the file list sits higher. */
+.dropzone.compact {
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+/* Visibility is managed by Alpine x-show (+ x-cloak guards the pre-init flash);
+   the panel must NOT default to display:none, or x-show could never reveal it. */
+#rosterBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#studentList,
+#assignmentList {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+#asnFilesCard {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#asnFilesList {
+  overflow-y: auto;
+  min-height: 60px;
+}
+
+/* Tutoring tab: let the threads + anonymous-links list scroll when taller than the panel
+   (the section is overflow:hidden, so this body must own the scroll). */
+#asnTutoringBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Per-chat rows under an anonymous link: roomier vertical rhythm, slimmer action buttons.
+   Layout/disabled state live here (not inline) so the row's :class toggle can't clobber it. */
+.anon-chat-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 6px;
+  border-top: 1px solid #eef1f4;
+}
+
+.anon-chat-row:first-child {
+  border-top: none;
+}
+
+.anon-chat-row.disabled {
+  opacity: .55;
+}
+
+.anon-chat-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.anon-chat-row .btn.small {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.anon-chat-row .btn.small.icon {
+  padding: 3px 6px;
+}
+
+.class-sidebar-item {
+  margin: 6px 10px;
+  border-radius: var(--lt-radius-lg);
+  border: 1px solid var(--lt-border-secondary);
+  background: var(--lt-bg-container);
+  overflow: hidden;
+  transition: box-shadow .15s ease;
+}
+
+.class-sidebar-item:hover {
+  box-shadow: var(--lt-shadow-secondary);
+}
+
+.class-sidebar-item.active {
+  border-color: var(--lt-primary-border);
+  box-shadow: 0 0 0 2px var(--lt-primary-bg);
+}
+
+.class-sidebar-item.class-deactivated {
+  border-color: var(--lt-border-secondary);
+  background: var(--lt-fill-quaternary);
+  opacity: .85;
+}
+
+.class-sidebar-item.class-deactivated:hover {
+  box-shadow: var(--lt-shadow-tertiary);
+}
+
+.class-item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.class-item-header:hover {
+  background: var(--lt-fill-tertiary);
+}
+
+.class-btn-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.asn-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--lt-text-tertiary);
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: var(--lt-radius);
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background .1s, color .1s;
+}
+
+.asn-toggle-btn:hover {
+  background: var(--lt-primary-bg);
+  color: var(--lt-primary);
+}
+
+.class-disable-btn {
+  background: none;
+  border: 1px solid var(--lt-border);
+  cursor: pointer;
+  color: var(--lt-text-tertiary);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: var(--lt-radius-sm);
+  line-height: 1.4;
+  flex-shrink: 0;
+  transition: background .1s, color .1s, border-color .1s;
+  white-space: nowrap;
+}
+
+.class-disable-btn:hover {
+  background: var(--lt-error-bg);
+  color: var(--lt-error-text);
+  border-color: var(--lt-error-border);
+}
+
+.class-activate-btn {
+  background: none;
+  border: 1px solid var(--lt-success-border);
+  cursor: pointer;
+  color: #237804;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: var(--lt-radius-sm);
+  line-height: 1.4;
+  flex-shrink: 0;
+  transition: background .1s, color .1s;
+  white-space: nowrap;
+}
+
+.class-activate-btn:hover {
+  background: var(--lt-success-bg);
+}
+
+.class-deactivated-badge {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--lt-text-tertiary);
+  background: var(--lt-fill-secondary);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-sm);
+  padding: 1px 5px;
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+
+.class-asn-dropdown {
+  border-top: 1px solid var(--lt-border-secondary);
+  background: var(--lt-fill-quaternary);
+  padding: 8px 10px;
+}
+
+.sidebar-asn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.sidebar-asn-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--lt-radius);
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-border-secondary);
+  font-size: 12px;
+}
+
+.sidebar-asn-row:hover {
+  background: var(--lt-fill-tertiary);
+}
+
+.sidebar-asn-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lt-text);
+}
+
+.rename-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--lt-text-tertiary);
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: var(--lt-radius-sm);
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 1;
+  transition: color .1s;
+}
+
+.rename-btn:hover {
+  color: var(--lt-primary);
+}
+
+.class-rename-btn,
+.term-rename-btn,
+.assignment-rename-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+.class-term-row {
+  width: 100%;
+}
+
+.assignment-rename-btn {
+  margin-left: 2px;
+  color: var(--lt-primary);
+  background: var(--lt-primary-bg);
+  border: 1px solid var(--lt-primary-border);
+  border-radius: var(--lt-radius);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.assignment-rename-btn:hover {
+  background: var(--lt-primary-bg-hover);
+  color: var(--lt-primary-active);
+}
+
+.inline-rename-input {
+  font: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--lt-primary);
+  outline: none;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.sidebar-asn-check {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.sidebar-asn-check input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--lt-primary);
+  cursor: pointer;
+}
+
+.sidebar-asn-add-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sidebar-asn-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius);
+  padding: 5px 8px;
+  font-size: 12px;
+  background: var(--lt-bg-container);
+}
+
+.sidebar-asn-input:focus {
+  outline: none;
+  border-color: var(--lt-primary);
+  box-shadow: 0 0 0 2px var(--lt-primary-bg);
+}
+
+.instructor-page .btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: var(--lt-radius);
+  border: 1px solid var(--lt-primary-border);
+  background: var(--lt-primary-bg);
+  color: var(--lt-primary);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .1s;
+}
+
+.instructor-page .btn-icon:hover {
+  background: var(--lt-primary-bg-hover);
+}
+
+.asn-rm-btn {
+  background: var(--lt-error-bg);
+  border-color: var(--lt-error-border);
+  color: var(--lt-error);
+}
+
+.asn-rm-btn:hover {
+  background: var(--lt-error-border);
+}
+
+.tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font: 700 12px/1 var(--lt-font);
+  border-radius: 50%;
+  background: var(--lt-fill-secondary);
+  color: var(--lt-text-secondary);
+  border: 1px solid var(--lt-border-secondary);
+  cursor: default;
+  position: relative;
+  margin-left: 6px;
+  user-select: none;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.tip .tip-pop {
+  display: none !important;
+}
+
+#uiTip {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  background: var(--lt-bg-spotlight);
+  color: #fff;
+  border: none;
+  border-radius: var(--lt-radius-lg);
+  padding: 8px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: var(--lt-shadow);
+  z-index: 9999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease, visibility .12s ease;
+}
+
+#uiTip.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+#uiTip::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: transparent transparent var(--lt-bg-spotlight) transparent;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   STUDENT-SPECIFIC
+   ══════════════════════════════════════════════════════════════ */
+.student-page .container {
+  display: flex;
+  align-items: stretch !important;
+  height: calc(100svh - var(--nav-h)) !important;
+  gap: var(--g);
+  padding: var(--g) !important;
+  box-sizing: border-box;
+  max-width: none;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.student-page .sidebar {
+  flex: 0 0 280px;
+  min-width: 280px;
+  margin-right: 20px;
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-border-secondary);
+  display: flex;
+  flex-direction: column;
+  box-shadow: none;
+  transition: flex-basis .25s ease, margin-right .25s ease;
+  border-radius: var(--lt-radius-lg);
+  overflow: hidden;
+  margin-top: 0;
+}
+
+.student-page .sidebar.collapsed {
+  flex: 0 0 52px;
+  min-width: 52px;
+  margin-right: 12px;
+  padding: 0;
+  border-right: 0;
+  overflow: hidden;
+}
+
+.student-page #chatEditorSplit.lt-split {
+  display: flex;
+  align-items: stretch;
+  height: 100% !important;
+  width: 100% !important;
+  flex: 1 1 auto;
+  gap: calc(var(--g) - var(--handle-w));
+  min-height: 0;
+  padding-right: calc(var(--g) + var(--handle-w) / 2) !important;
+  box-sizing: border-box;
+}
+
+.student-page #chatSection,
+.student-page #editorSection,
+.student-page .sidebar {
+  margin: 0 !important;
+  max-width: 100% !important;
+}
+
+.student-page .sidebar,
+.student-page #chatEditorSplit.lt-split {
+  height: 100% !important;
+  margin-bottom: 0 !important;
+  min-height: 0 !important;
+}
+
+.student-page .sidebar,
+.student-page #chatEditorSplit.lt-split,
+.student-page #chatSection,
+.student-page #editorSection {
+  min-height: 0 !important;
+}
+
+.student-page .splitter {
+  position: relative;
+  width: var(--handle-w);
+  min-width: var(--handle-w);
+  margin: 0;
+  cursor: col-resize;
+  border-radius: var(--lt-radius);
+  background: var(--lt-fill-secondary);
+  border: 1px solid var(--lt-border-secondary);
+  box-shadow: none;
+  margin-inline: calc(var(--rail-gap) / 2);
+}
+
+.student-page .splitter::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 5px;
+  right: 5px;
+  border-radius: 8px;
+  background:
+    linear-gradient(var(--lt-border), var(--lt-border)) left 5px / 2px 100% no-repeat,
+    linear-gradient(var(--lt-border), var(--lt-border)) right 5px / 2px 100% no-repeat;
+  opacity: .9;
+}
+
+.student-page .splitter:hover {
+  border-color: var(--lt-border);
+  background: var(--lt-fill);
+}
+
+.drag-drop-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: var(--lt-primary-bg);
+  border: 2px dashed var(--lt-primary);
+  border-radius: var(--lt-radius-lg);
+  z-index: 20;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: .85;
+}
+
+.drag-drop-overlay.active {
+  display: flex;
+}
+
+.drag-drop-hint {
+  background: var(--lt-bg-elevated);
+  color: var(--lt-primary);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 26px;
+  border-radius: var(--lt-radius-lg);
+  box-shadow: var(--lt-shadow-secondary);
+}
+
+.option-link {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: var(--lt-radius);
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border: none;
+  margin-bottom: 5px;
+}
+
+.option-link:hover {
+  background: var(--lt-fill-secondary);
+  transform: none;
+  color: var(--lt-primary-hover);
+}
+
+/* Closed (view-only) conversation: the tutor's suggestion links stay READABLE but are inert.
+   send() already refuses them — this stops them from advertising a click that does nothing.
+   Set on the message list, so it covers links rendered before AND after the close. */
+.chat-closed .option-link {
+  pointer-events: none;
+  cursor: default;
+  opacity: .6;
+  background: var(--lt-fill-quaternary);
+  color: var(--lt-text-secondary);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LOGIN / AUTH PAGES
+   ══════════════════════════════════════════════════════════════ */
+body.login-page {
+  background: var(--lt-bg-layout);
+  min-height: 100vh;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.login-container {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  padding: 20px;
+}
+
+.login-card {
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-xl);
+  box-shadow: var(--lt-shadow);
+  padding: 36px;
+  animation: slideUp 0.4s ease-out;
+}
+
+.logo-section {
+  text-align: center;
+  margin-bottom: 28px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+}
+
+.logo-section h1 {
+  font-size: 28px;
+  color: var(--lt-text);
+  margin-bottom: 6px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: var(--lt-text-tertiary);
+  font-weight: 400;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--lt-text-secondary);
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius);
+  font-size: 14px;
+  transition: all 0.15s ease;
+  background: var(--lt-bg-container);
+  color: var(--lt-text);
+  outline: none;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: var(--lt-primary);
+  box-shadow: 0 0 0 2px var(--lt-primary-bg);
+}
+
+.form-group select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23737373' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 40px;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 11px 24px;
+  background: var(--lt-primary);
+  color: var(--lt-text-on-primary);
+  border: none;
+  border-radius: var(--lt-radius);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--lt-primary-hover);
+}
+
+.login-btn:active {
+  transform: none;
+  background: var(--lt-primary-active);
+}
+
+.login-btn .btn-icon {
+  font-size: 18px;
+  transition: transform 0.15s ease;
+}
+
+.login-btn:hover .btn-icon {
+  transform: translateX(3px);
+}
+
+.demo-info {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--lt-border-secondary);
+  text-align: center;
+}
+
+.demo-info p {
+  font-size: 13px;
+  color: var(--lt-text-tertiary);
+  margin-bottom: 6px;
+}
+
+.demo-info a {
+  color: var(--lt-primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.demo-info a:hover {
+  color: var(--lt-primary-hover);
+}
+
+.demo-info code {
+  background: var(--lt-fill-secondary);
+  padding: 2px 8px;
+  border-radius: var(--lt-radius-sm);
+  font-family: var(--lt-font-mono);
+  color: var(--lt-text);
+  font-size: 12px;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 22px;
+  }
+
+  .logo-section h1 {
+    font-size: 24px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+  }
+}
+
+/* ─── Public landing (wraps the login card on "/") ──────────── */
+/* margin:auto (not align-items) so the tall column never clips
+   its top edge when the viewport is shorter than the content */
+.landing {
+  margin: auto;
+  width: 100%;
+  max-width: 880px;
+  padding: 48px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.landing-hero {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.landing-brand {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--lt-text);
+  letter-spacing: -.01em;
+  margin-bottom: 20px;
+}
+
+.hero-code {
+  font-family: var(--lt-font-mono);
+  font-weight: 600;
+  font-size: clamp(30px, 6vw, 52px);
+  letter-spacing: -.02em;
+  color: var(--lt-text);
+  margin-bottom: 16px;
+}
+
+.hero-code .tok-kw {
+  color: var(--lt-primary);
+}
+
+.hero-code .tok-brace {
+  color: var(--lt-success);
+  font-weight: 500;
+}
+
+.hero-sub {
+  font-size: 16px;
+  color: var(--lt-text-secondary);
+  max-width: 560px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.landing .login-container {
+  max-width: 420px;
+  padding: 0 20px;
+}
+
+.card-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--lt-text);
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  width: 100%;
+  margin-top: 42px;
+}
+
+.landing-features article {
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-lg);
+  padding: 18px 20px;
+}
+
+.landing-features h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lt-text);
+  margin-bottom: 6px;
+}
+
+.landing-features p {
+  font-size: 13.5px;
+  color: var(--lt-text-secondary);
+  line-height: 1.55;
+}
+
+.landing-footer {
+  margin-top: 36px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--lt-text-tertiary);
+  line-height: 1.8;
+}
+
+.landing-footer a {
+  color: var(--lt-primary);
+  text-decoration: none;
+}
+
+.landing-footer a:hover {
+  color: var(--lt-primary-hover);
+}
+
+@media (max-width: 720px) {
+  .landing {
+    padding-top: 32px;
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DRAG / RESIZE STATE
+   ══════════════════════════════════════════════════════════════ */
+body.resizing,
+body.resizing * {
+  user-select: none !important;
+  cursor: col-resize !important;
+  overflow: hidden;
+}
+
+/* ──────────────────── Accessibility ────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ROSTER / AUDIT TABS  (right panel of instructor page)
+   ══════════════════════════════════════════════════════════════ */
+.roster-tab-bar,
+.asn-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  margin: -14px -14px 12px;
+  padding: 0 14px;
+  background: var(--lt-fill-quaternary);
+  border-radius: var(--lt-radius-lg) var(--lt-radius-lg) 0 0;
+  flex-shrink: 0;
+}
+
+.roster-tab,
+.asn-tab {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--lt-text-tertiary);
+  padding: 10px 14px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+}
+
+.roster-tab:hover,
+.asn-tab:hover {
+  color: var(--lt-text);
+}
+
+.roster-tab.active,
+.asn-tab.active {
+  color: var(--lt-primary);
+  border-bottom-color: var(--lt-primary);
+  font-weight: 600;
+}
+
+/* Right-oriented collapse toggle for the roster/audit panel */
+.roster-collapse-btn {
+  margin-left: 8px;
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--lt-text-secondary);
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.roster-collapse-btn:hover {
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-text);
+}
+
+.roster-collapsed-label {
+  display: none;
+}
+
+/* Collapsed state: panel shrinks to a thin strip, assignments panel grows */
+#rosterSection.collapsed {
+  flex: 0 0 48px !important;
+  min-width: 48px !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+#rosterSection.collapsed .roster-tab,
+#rosterSection.collapsed #rosterClassHint,
+#rosterSection.collapsed .roster-tab-panel {
+  display: none !important;
+}
+
+#rosterSection.collapsed .roster-tab-bar {
+  margin: 0;
+  padding: 8px 0;
+  justify-content: center;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-lg) var(--lt-radius-lg) 0 0;
+}
+
+#rosterSection.collapsed .roster-collapse-btn {
+  margin-left: 0;
+}
+
+#rosterSection.collapsed .roster-collapsed-label {
+  display: block;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  margin: 14px auto 0;
+  color: var(--lt-text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+#rosterSection.collapsed .roster-collapsed-label:hover {
+  color: var(--lt-text);
+}
+
+.roster-tab-panel,
+.asn-tab-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+/* Audit tabs (assignment + class): the body fills the panel and owns the vertical scroll
+   when there are too many chats to fit on one screen. This mirrors #asnTutoringBody (a
+   proven scroll panel): flex:1 in a definite-height flex column + min-height:0 + overflow.
+   The sticky <th> keeps the column labels visible while the list scrolls. */
+#asnAuditBody,
+#instAuditBody {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.inst-audit-table-wrap {
+  overflow-x: auto;
+}
+
+/* "Needs attention" strip: help-flagged threads + latest failing runs, above the audit table */
+.inst-issues {
+  margin: 0 0 12px;
+  border: 1px solid var(--lt-border);
+  border-radius: 8px;
+  background: var(--lt-bg-container);
+  overflow: hidden;
+}
+
+.inst-issues-head {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--lt-text-tertiary);
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.inst-issue {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+}
+
+.inst-issue:last-child {
+  border-bottom: none;
+}
+
+.inst-issue:hover {
+  background: var(--lt-fill-secondary);
+}
+
+.inst-issue.flagged {
+  background: var(--lt-warning-bg, #fef9ec);
+}
+
+.inst-issue-who {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.inst-issue-who code {
+  font-size: 11px;
+}
+
+.inst-issue-err {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lt-text-secondary);
+  font-family: var(--lt-font-mono, monospace);
+  font-size: 11px;
+}
+
+.inst-issue-when {
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--lt-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* flagged row highlight in the sessions table */
+.inst-audit-table tr.help-flagged td {
+  background: var(--lt-warning-bg, #fef9ec);
+}
+
+/* Assignment pills */
+.inst-audit-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inst-audit-pill {
+  background: var(--lt-fill-secondary);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--lt-text-secondary);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inst-audit-pill:hover {
+  background: var(--lt-primary-bg);
+  border-color: var(--lt-primary-border);
+  color: var(--lt-primary);
+}
+
+.inst-audit-pill.active {
+  background: var(--lt-primary);
+  border-color: var(--lt-primary);
+  color: #fff;
+}
+
+/* Sessions table */
+.inst-audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.inst-audit-table th {
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--lt-text-tertiary);
+  border-bottom: 1px solid var(--lt-border-secondary);
+  background: var(--lt-fill-quaternary);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.inst-audit-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  vertical-align: middle;
+}
+
+.inst-audit-table tr.audit-row {
+  cursor: pointer;
+}
+
+.inst-audit-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.inst-audit-table th.sortable:hover {
+  color: var(--lt-text-secondary);
+}
+
+.inst-audit-table tr:last-child td {
+  border-bottom: none;
+}
+
+.inst-audit-table tr:hover td {
+  background: var(--lt-fill-tertiary);
+}
+
+.inst-audit-empty {
+  text-align: center;
+  color: var(--lt-text-tertiary);
+  padding: 20px 0 !important;
+  font-style: italic;
+}
+
+/* Conversation modal */
+.inst-audit-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--lt-bg-mask);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.inst-audit-modal {
+  background: var(--lt-bg-elevated);
+  border-radius: var(--lt-radius-xl);
+  box-shadow: var(--lt-shadow);
+  width: min(680px, 94vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.inst-audit-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  flex-shrink: 0;
+}
+
+.inst-audit-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--lt-text);
+}
+
+.inst-audit-modal-sub {
+  font-size: 12px;
+  color: var(--lt-text-tertiary);
+  margin-top: 2px;
+}
+
+.inst-audit-messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inst-audit-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 90%;
+}
+
+.inst-audit-msg-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.inst-audit-msg-ai {
+  align-self: flex-start;
+}
+
+.inst-audit-msg-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--lt-text-tertiary);
+}
+
+.inst-audit-msg-bubble {
+  padding: 9px 13px;
+  border-radius: var(--lt-radius-lg);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.inst-audit-msg-user .inst-audit-msg-bubble {
+  background: var(--lt-primary-bg);
+  color: var(--lt-text);
+}
+
+.inst-audit-msg-ai .inst-audit-msg-bubble {
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-text);
+}
+
+/* Uploaded-file links: top list + inline-in-thread */
+.inst-audit-files {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  background: var(--lt-fill-quaternary);
+}
+
+.inst-audit-files-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--lt-text-tertiary);
+}
+
+.inst-audit-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--lt-primary-border);
+  background: var(--lt-primary-bg);
+  color: var(--lt-primary);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.inst-audit-file-chip:hover {
+  background: var(--lt-primary-bg-hover);
+}
+
+.inst-audit-fileline {
+  align-self: stretch;
+  font-size: 12px;
+  color: var(--lt-text-secondary);
+}
+
+.inst-audit-fileline a {
+  color: var(--lt-primary);
+  font-weight: 600;
+}
+
+
+/* ==============================================================
+   19. STUDENT PAGE — threads, pending files, chat code blocks, compile UI
+   ============================================================== */
+.thread-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  background: var(--lt-fill-quaternary);
+}
+
+.thread-bar-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+}
+
+.thread-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.thread-pill {
+  border: 1px solid var(--lt-border-secondary);
+  background: var(--lt-fill-secondary);
+  color: var(--lt-text-secondary);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+
+.thread-pill:hover {
+  background: var(--lt-fill-tertiary);
+}
+
+.thread-pill.active {
+  background: var(--lt-primary);
+  color: #fff;
+  border-color: var(--lt-primary);
+}
+
+/* Pending (staged) file chips above the input row */
+.pending-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0 0;
+}
+
+.pending-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--lt-fill-tertiary);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius);
+  padding: 4px 6px 4px 10px;
+  font-size: 12px;
+  color: var(--lt-text-secondary);
+  max-width: 260px;
+}
+
+.pending-file .pf-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pending-file .pf-size {
+  color: var(--muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.pending-file .pf-remove {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.pending-file .pf-remove:hover {
+  color: var(--lt-error);
+}
+
+.message .msg-attachments {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.message .msg-attachment {
+  font-size: 11px;
+  background: var(--lt-fill-secondary);
+  border-radius: var(--lt-radius-sm);
+  padding: 2px 6px;
+}
+
+/* Code blocks rendered inside chat messages (dark, paired with highlight.js) */
+.code-wrap {
+  margin: 8px 0;
+  border: 1px solid #1f2937;
+  border-radius: var(--lt-radius-lg);
+  overflow: hidden;
+  background: #282c34;
+}
+
+.code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  background: #21252b;
+  color: #9aa4b2;
+  font-size: 11px;
+}
+
+.code-lang {
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  font-weight: 600;
+}
+
+.code-copy {
+  background: transparent;
+  border: 1px solid #3a4150;
+  color: #cbd5e1;
+  border-radius: var(--lt-radius);
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.code-copy:hover {
+  background: #3a4150;
+  color: #fff;
+}
+
+.message-content pre.code-block {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: var(--lt-font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  background: #282c34;
+}
+
+.message-content pre.code-block code,
+.message-content pre.code-block code.hljs {
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  white-space: pre;
+}
+
+.message-content code.inline-code {
+  background: var(--lt-fill-secondary);
+  color: var(--lt-text);
+  padding: 1px 5px;
+  border-radius: var(--lt-radius-sm);
+  font-family: var(--lt-font-mono);
+  font-size: .92em;
+}
+
+/* Compile/run result card — terminal-style status bar + monospace output. Shown for
+     chat turns reloaded from history on the student/anon chat and the Deep Coding IDE
+     (renderMessageHtml in student/render.js). Global, not scoped to .message-content,
+     so it renders identically inside .ide-msg-content as well. */
+.run-result {
+  margin: 8px 0;
+  border: 1px solid #1f2937;
+  border-radius: var(--lt-radius-lg);
+  overflow: hidden;
+  background: #282c34;
+}
+
+.run-result-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  background: #21252b;
+  font-size: 11px;
+}
+
+.run-result-status {
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+.run-result.run-ok .run-result-status {
+  color: #4ade80;
+}
+
+.run-result.run-fail .run-result-status {
+  color: #f87171;
+}
+
+.run-result-meta {
+  color: #9aa4b2;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.run-result-body {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: var(--lt-font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #e6e6e6;
+  background: #282c34;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Inline chat image (uploaded attachment / program-generated output). Global
+     like .run-result — used in .message-content and .ide-msg-content alike. */
+.chat-img {
+  margin: 8px 0;
+}
+
+.chat-img img {
+  display: block;
+  max-width: min(100%, 480px);
+  max-height: 360px;
+  border: 1px solid var(--lt-border, #e5e7eb);
+  border-radius: var(--lt-radius-lg);
+  background: #fff;
+}
+
+.chat-img-name {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--lt-text-muted, #6b7280);
+}
+
+/* ── Auto-repair colored diff ─────────────────────────────────
+     Shown under run output when the code was auto-fixed: removed lines red,
+     added lines green. Rendered by autoRepairDiffHtml() (common.js). */
+.ar-diff {
+  margin-top: 8px;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius);
+  overflow: hidden;
+}
+
+.ar-diff-head {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: var(--lt-text-tertiary);
+  background: var(--lt-bg-elevated);
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.ar-diff-body {
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  max-height: 260px;
+  font-family: var(--lt-font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+.ar-diff-body .d-del {
+  display: block;
+  color: var(--lt-error-text);
+  background: var(--lt-error-bg);
+}
+
+.ar-diff-body .d-ins {
+  display: block;
+  color: #237804;
+  background: var(--lt-success-bg);
+}
+
+.ar-diff-body .d-ctx {
+  display: block;
+  color: var(--lt-text-secondary);
+}
+
+.ar-diff-body .d-gap {
+  display: block;
+  color: var(--lt-text-tertiary);
+  text-align: center;
+}
+
+/* ── Compile offer bar ────────────────────────────────────── */
+.compile-offer {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--lt-primary-bg);
+  border: 1px solid var(--lt-primary-border);
+  border-radius: var(--lt-radius);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.compile-offer-label {
+  font-size: 13px;
+  color: var(--lt-text-secondary);
+  flex: 1;
+}
+
+.compile-run-btn {
+  background: var(--lt-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--lt-radius);
+  padding: 5px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.compile-run-btn:hover {
+  background: var(--lt-primary-hover);
+}
+
+/* ── Security-rejected compile block ─────────────────────────── */
+.compile-security-notice {
+  background: var(--lt-warning-bg);
+  border: 1px solid var(--lt-warning-border);
+  border-radius: var(--lt-radius);
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--lt-warning-text);
+}
+
+.compile-security-notice strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.compile-security-reasons {
+  list-style: disc;
+  padding-left: 18px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--lt-warning-text);
+}
+
+/* Failed assistant message + retry control */
+.message.ai.message-failed .message-content {
+  border-left: 3px solid var(--lt-warning);
+  background: var(--lt-warning-bg);
+  padding-left: 12px;
+}
+
+.msg-retry-bar {
+  margin-top: 8px;
+}
+
+.msg-retry-btn {
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--lt-warning-text);
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-warning-border);
+  border-radius: var(--lt-radius);
+  padding: 4px 12px;
+  transition: background .15s;
+}
+
+.msg-retry-btn:hover {
+  background: var(--lt-warning-bg);
+}
+
+.msg-retry-btn:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+/* ---- Per-session uploaded-files bar (below the Sessions switcher) ---- */
+.session-files-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  background: var(--lt-bg-container);
+}
+
+.session-files-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.session-files-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+}
+
+.session-files-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.session-files-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  font-family: monospace;
+  padding: 2px 7px;
+  background: var(--lt-fill-secondary);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.session-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--lt-border-secondary);
+  background: var(--lt-fill-secondary);
+  color: var(--lt-text-secondary);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  max-width: 240px;
+  transition: background .15s, border-color .15s;
+}
+
+.session-file-chip:hover {
+  background: var(--lt-fill-tertiary);
+  border-color: var(--lt-primary-border);
+}
+
+.session-file-chip.code {
+  border-color: var(--lt-primary-border);
+  color: var(--lt-primary);
+}
+
+.session-file-chip.missing {
+  opacity: .5;
+}
+
+.session-file-chip .sfc-icon {
+  font-size: 11px;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.session-file-chip .sfc-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Clickable attachment chip in the student's own turn */
+.message .msg-attachment.clickable {
+  cursor: pointer;
+}
+
+.message .msg-attachment.clickable:hover {
+  background: var(--lt-fill-tertiary);
+}
+
+/* In-thread file marker (reloaded threads) */
+.file-marker {
+  background: none;
+  padding: 0;
+  margin: 4px 0;
+  display: block;
+}
+
+.thread-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px dashed var(--lt-border-secondary);
+  background: var(--lt-fill-secondary);
+  color: var(--lt-text-secondary);
+  border-radius: var(--lt-radius);
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  max-width: 320px;
+}
+
+.thread-file-chip:hover {
+  background: var(--lt-fill-tertiary);
+  border-color: var(--lt-primary-border);
+}
+
+.thread-file-chip.code {
+  color: var(--lt-primary);
+  border-color: var(--lt-primary-border);
+}
+
+.thread-file-chip.disabled {
+  cursor: default;
+  opacity: .6;
+}
+
+.thread-file-chip .tfc-icon {
+  font-family: monospace;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.thread-file-chip .tfc-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- File compile/edit window (modal) ---- */
+.sf-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  background: var(--lt-bg-mask);
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.sf-modal.open {
+  display: flex;
+}
+
+.sf-box {
+  background: var(--lt-bg-elevated);
+  border-radius: var(--lt-radius-xl);
+  width: min(760px, 96vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--lt-shadow);
+  overflow: hidden;
+}
+
+.sf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  flex-shrink: 0;
+}
+
+.sf-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lt-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sf-title.clickable {
+  cursor: pointer;
+}
+
+.sf-title.clickable:hover {
+  color: var(--lt-primary);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+/* inline file rename in the modal header */
+.sf-rename-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sf-rename-input {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lt-text);
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-primary);
+  border-radius: var(--lt-radius-sm);
+  padding: 4px 8px;
+  min-width: 180px;
+  max-width: 420px;
+  outline: none;
+}
+
+.sf-rename-err {
+  font-size: 12px;
+  color: var(--lt-error-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sf-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sf-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sf-loading {
+  color: var(--muted);
+  text-align: center;
+  padding: 24px 0;
+}
+
+.sf-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sf-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sf-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sf-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+}
+
+.sf-muted {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.sf-editor {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 220px;
+  max-height: 42vh;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px;
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius);
+  background: var(--lt-bg-container);
+  color: var(--lt-text);
+}
+
+.sf-stdin {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 8px;
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius);
+  background: var(--lt-bg-container);
+  color: var(--lt-text);
+}
+
+.sf-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sf-output {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--lt-radius);
+  background: var(--lt-fill-secondary);
+  color: var(--lt-text);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.sf-summary {
+  font-size: 13px;
+  color: var(--lt-text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.sf-analysis {
+  font-size: 13px;
+  color: var(--lt-text-secondary);
+  line-height: 1.5;
+}
+
+.sf-analysis .sf-desc {
+  margin: 0 0 8px;
+  color: var(--lt-text);
+}
+
+.sf-note {
+  font-size: 12px;
+  margin-top: 6px;
+  color: var(--lt-text-secondary);
+}
+
+.sf-note-warn {
+  background: var(--lt-warning-bg);
+  color: var(--lt-warning-text);
+  border-radius: var(--lt-radius);
+  padding: 6px 10px;
+}
+
+.sf-stale {
+  font-size: 12px;
+  color: var(--lt-warning-text);
+  background: var(--lt-warning-bg);
+  border-radius: var(--lt-radius);
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+/* ---- "Instructor help" overlay (replaces the browser prompt()) ---- */
+.help-flag-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9600;
+  background: var(--lt-bg-mask);
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.help-flag-modal.open {
+  display: flex;
+}
+
+.help-flag-box {
+  background: var(--lt-bg-elevated);
+  border-radius: var(--lt-radius-xl);
+  width: min(440px, 92vw);
+  box-shadow: var(--lt-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+}
+
+.help-flag-head {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lt-text);
+}
+
+.help-flag-sub {
+  font-size: 12px;
+  color: var(--lt-text-tertiary);
+  line-height: 1.5;
+}
+
+.help-flag-note {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 64px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius);
+  background: var(--lt-bg-container);
+  color: var(--lt-text);
+}
+
+.help-flag-note:focus {
+  outline: none;
+  border-color: var(--lt-primary-border);
+}
+
+.help-flag-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.help-flag-actions .btn.quiet {
+  background: transparent;
+  color: var(--lt-text-secondary);
+  border: 1px solid var(--lt-border);
+}
+
+.help-flag-actions .btn.quiet:hover {
+  background: var(--lt-fill-tertiary);
+  color: var(--lt-text);
+}
+
+/* ---- Upload duplicate-name overwrite confirm (shares the help-flag modal shell) ---- */
+.upload-conflict-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 30vh;
+  overflow-y: auto;
+  font-family: var(--lt-font-mono);
+  font-size: 12px;
+  color: var(--lt-text);
+}
+
+.upload-conflict-list li {
+  padding: 2px 0;
+  word-break: break-all;
+}
+
+.upload-conflict-list label {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  cursor: pointer;
+}
+
+.upload-conflict-list input[type="checkbox"] {
+  flex: 0 0 auto;
+}
+
+/* ==============================================================
+   20. INSTRUCTOR PAGE — files header, compile modal, hints, failed-task queue
+   ============================================================== */
+.files-section-hdr {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  padding: 8px 2px 2px;
+  margin-top: 4px;
+}
+
+/* Star toggle that pins a file to the top of its file-type group */
+.file-star {
+  flex-shrink: 0;
+  margin-top: 1px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--lt-text-quaternary);
+  transition: color .12s, transform .12s;
+}
+
+.file-star:hover {
+  color: var(--lt-warning);
+  transform: scale(1.15);
+}
+
+.file-star.on {
+  color: var(--lt-warning);
+}
+
+/* Compact file row (name-only list; details open in the modal) */
+/* cursor lives here (not inline): the row's :style string-binding replaces the
+   style attribute on render, so an inline cursor:pointer would be wiped. */
+.file-row {
+  cursor: pointer;
+}
+
+.file-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--lt-text);
+}
+
+.file-row:hover {
+  filter: brightness(0.97);
+}
+
+.file-row:hover .file-row-name {
+  text-decoration: underline;
+}
+
+/* Download glyph on non-text (download-on-click) rows */
+.file-dl {
+  flex-shrink: 0;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--lt-text-tertiary);
+  transition: color .12s, transform .12s;
+}
+
+.file-dl:hover {
+  color: var(--lt-primary);
+  transform: translateY(1px);
+}
+
+.fd-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── File-detail / edit modal ─────────────────────────────────── */
+#fileDetailModal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--lt-bg-mask);
+  align-items: center;
+  justify-content: center;
+  z-index: 1280;
+}
+
+#fileDetailModal.open {
+  display: flex;
+}
+
+#fileDetailBox {
+  background: var(--lt-bg-elevated);
+  border-radius: var(--lt-radius-xl);
+  box-shadow: var(--lt-shadow);
+  width: min(900px, 95vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--lt-border-secondary);
+  flex-shrink: 0;
+}
+
+.fd-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fd-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lt-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fd-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fd-loading {
+  text-align: center;
+  color: var(--lt-text-tertiary);
+  padding: 24px 0;
+}
+
+.fd-active {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--lt-text-secondary);
+  cursor: pointer;
+}
+
+.fd-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fd-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--lt-text-tertiary);
+}
+
+.fd-muted {
+  font-size: 12px;
+  color: var(--lt-text-tertiary);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.fd-summary {
+  font-size: 13px;
+  color: var(--lt-text-secondary);
+  line-height: 1.5;
+}
+
+.fd-remarks {
+  font-size: 13px;
+  color: var(--lt-text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  padding: 8px 10px;
+  background: var(--lt-fill-quaternary);
+  border-radius: var(--lt-radius);
+}
+
+.fd-editor {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 280px;
+  max-height: 55vh;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  padding: 10px 12px;
+  tab-size: 4;
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius);
+  color: var(--lt-text);
+  background: var(--lt-bg-container);
+  white-space: pre;
+  overflow: auto;
+}
+
+.fd-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fd-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fd-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--lt-primary-border);
+  background: var(--lt-primary-bg);
+  color: var(--lt-primary);
+  border-radius: 999px;
+  padding: 3px 6px 3px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fd-tag-chip.fd-tag-private {
+  border-color: var(--lt-border-secondary);
+  background: var(--lt-fill-secondary);
+  color: var(--lt-text-secondary);
+}
+
+.fd-tag-x {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  opacity: .7;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px;
+  border-radius: 999px;
+}
+
+.fd-tag-x:hover {
+  opacity: 1;
+}
+
+.fd-tag-add {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--lt-border-secondary);
+  background: var(--lt-bg-container);
+  color: var(--lt-text-secondary);
+  cursor: pointer;
+}
+
+.fd-risk {
+  padding: 10px 12px;
+  background: var(--lt-warning-bg);
+  border: 1px solid var(--lt-warning-border);
+  border-left: 3px solid var(--lt-warning);
+  border-radius: var(--lt-radius);
+  font-size: 12.5px;
+  color: var(--lt-warning-text);
+}
+
+.fd-risk-hdr {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.fd-risk ul {
+  margin: 4px 0 8px 18px;
+}
+
+.btn.danger {
+  background: var(--lt-error, #d4380d);
+  color: #fff;
+  border-color: transparent;
+}
+
+#compileModal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--lt-bg-mask);
+  align-items: center;
+  justify-content: center;
+  z-index: 1300;
+}
+
+#compileModal.open {
+  display: flex;
+}
+
+#compileModalBox {
+  background: var(--lt-bg-elevated);
+  border-radius: var(--lt-radius-xl);
+  box-shadow: var(--lt-shadow);
+  width: min(640px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Per-file compilation-hint text (file-detail modal); the Generate-hints
+   overlay this family styled is gone — the Compile Workbench replaced it. */
+.gh-item-text {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: var(--lt-font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lt-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+/* ── Compilation hint panel ──────────────────────────────────── */
+.hint-panel {
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: var(--lt-fill-quaternary);
+  border: 1px solid var(--lt-border-secondary);
+  border-radius: var(--lt-radius-lg);
+  font-size: 12px;
+}
+
+.hint-panel-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--lt-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hint-panel-hdr:hover {
+  color: var(--lt-text);
+}
+
+.hint-chevron {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--lt-text-tertiary);
+  transition: transform .15s;
+}
+
+.hint-body {
+  margin-top: 8px;
+}
+
+.hint-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--lt-radius-sm);
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.hint-badge-auto {
+  background: var(--lt-primary-bg);
+  color: var(--lt-primary-active);
+}
+
+.hint-badge-cust {
+  background: var(--lt-warning-bg);
+  color: var(--lt-warning-text);
+}
+
+.hint-badge-stale {
+  background: var(--lt-error-bg);
+  color: var(--lt-error-text);
+}
+
+.hint-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.hint-status {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.hint-stale-warn {
+  background: var(--lt-warning-bg);
+  border: 1px solid var(--lt-warning-border);
+  border-radius: var(--lt-radius);
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--lt-warning-text);
+}
+
+/* Failed AI tasks (retry queue) in the assignment panel */
+.asn-failed-tasks {
+  margin-top: 10px;
+  border: 1px solid var(--lt-error-border);
+  background: var(--lt-error-bg);
+  border-radius: var(--lt-radius-lg);
+  padding: 8px 10px;
+}
+
+.aft-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lt-error-text);
+  margin-bottom: 6px;
+}
+
+.aft-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--lt-error-border);
+}
+
+.aft-row:first-of-type {
+  border-top: none;
+}
+
+.aft-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.aft-kind {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lt-error-text);
+  background: var(--lt-error-border);
+  border-radius: var(--lt-radius-sm);
+  padding: 1px 6px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.aft-title {
+  font-size: 13px;
+  color: var(--lt-text-secondary);
+}
+
+.aft-err {
+  font-size: 11px;
+  color: var(--lt-error-text);
+  font-family: var(--lt-font-mono);
+}
+
+.btn.small.aft-retry {
+  background: var(--lt-bg-container);
+  border: 1px solid var(--lt-error-border);
+  color: var(--lt-error-text);
+  flex-shrink: 0;
+}
+
+.btn.small.aft-retry:hover {
+  background: var(--lt-error-bg);
+}
+
+.btn.small.aft-retry:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+/* ── Source-file editor with syntax highlighting ──────────────────────────
+ * Overlay technique: a highlighted <pre> sits behind a transparent <textarea>
+ * (see core/alpine.js → x-code-editor). The textarea keeps its size, border and
+ * caret; its text is made transparent so the coloured code underneath shows
+ * through. Typography/padding/border-width are copied from the textarea onto the
+ * <pre> at runtime so every editor (.sf-editor, .fd-editor, #tutFileContent)
+ * aligns exactly. Colours stay in the app's light theme. */
+.code-editor {
+  position: relative;
+}
+
+.code-editor-input {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+  color: transparent !important;
+  caret-color: var(--lt-text);
+  white-space: pre;
+}
+
+/* The selection is painted on the (transparent-text) textarea, which sits ON TOP
+ * of the coloured <pre>. The tint MUST be translucent so the highlighted code
+ * shows through; an opaque background (e.g. --lt-primary-bg) would hide the very
+ * text being selected. Text stays transparent so the <pre>'s syntax colours remain
+ * the visible glyphs. */
+.code-editor-input::selection {
+  background: rgba(22, 119, 255, .30);
+  color: transparent;
+}
+
+.code-editor-input::-moz-selection {
+  background: rgba(22, 119, 255, .30);
+  color: transparent;
+}
+
+.code-editor-pre {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  box-sizing: border-box;
+  background: var(--lt-bg-container);
+  color: var(--lt-text);
+  border: 1px solid transparent;
+  border-radius: var(--lt-radius);
+  white-space: pre;
+}
+
+.code-editor-pre code,
+.code-editor-pre code.hljs {
+  display: block;
+  font: inherit;
+  background: none;
+  padding: 0;
+  white-space: inherit;
+  color: inherit;
+}
+
+/* Light syntax theme — scoped to the editor only, so chat code blocks keep
+ * their own (dark) highlight.js theme. */
+.code-editor-pre .hljs-comment,
+.code-editor-pre .hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+
+.code-editor-pre .hljs-keyword,
+.code-editor-pre .hljs-meta-keyword,
+.code-editor-pre .hljs-doctag,
+.code-editor-pre .hljs-meta {
+  color: #d73a49;
+}
+
+.code-editor-pre .hljs-string,
+.code-editor-pre .hljs-regexp,
+.code-editor-pre .hljs-meta .hljs-string,
+.code-editor-pre .hljs-char.escape_ {
+  color: #032f62;
+}
+
+.code-editor-pre .hljs-number,
+.code-editor-pre .hljs-literal,
+.code-editor-pre .hljs-symbol,
+.code-editor-pre .hljs-bullet,
+.code-editor-pre .hljs-link {
+  color: #005cc5;
+}
+
+.code-editor-pre .hljs-title,
+.code-editor-pre .hljs-title.function_,
+.code-editor-pre .hljs-section,
+.code-editor-pre .hljs-name {
+  color: #6f42c1;
+}
+
+.code-editor-pre .hljs-type,
+.code-editor-pre .hljs-built_in,
+.code-editor-pre .hljs-title.class_,
+.code-editor-pre .hljs-class .hljs-title {
+  color: #005cc5;
+}
+
+.code-editor-pre .hljs-attr,
+.code-editor-pre .hljs-attribute,
+.code-editor-pre .hljs-variable,
+.code-editor-pre .hljs-template-variable,
+.code-editor-pre .hljs-params {
+  color: var(--lt-text);
+}
+
+.code-editor-pre .hljs-deletion {
+  color: #b31d28;
+  background: #ffeef0;
+}
+
+.code-editor-pre .hljs-addition {
+  color: #22863a;
+  background: #f0fff4;
+}

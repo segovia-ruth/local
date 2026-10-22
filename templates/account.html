@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Account · LeafTutor{% endblock %}
+{% block navbar_subtitle %}Account{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-scroll">
+  <div class="page-inner">
+    <h1 class="page-title">Account</h1>
+    <p class="page-sub">Your profile.</p>
+
+    <section class="panel">
+      <div class="acct-head">
+        <div class="acct-avatar" x-text="$store.ui.user.initials">??</div>
+        <div>
+          <div class="acct-name" x-text="$store.ui.user.name || 'Loading…'">Loading…</div>
+          <div class="acct-email" x-text="$store.ui.user.email"></div>
+        </div>
+      </div>
+    </section>
+
+
+
+    <section class="panel">
+      <h2>Session</h2>
+      <div class="acct-row">
+        <div>
+          <div class="acct-row-label">Sign out</div>
+          <div class="acct-row-hint">End your session on this device.</div>
+        </div>
+        <a class="acct-logout" href="/logout">Log out</a>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

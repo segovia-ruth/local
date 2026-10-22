@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% set anon = True %}
+{% block title %}Tutoring — LeafTutor{% endblock %}
+{% block body_class %}anon-gate-page{% endblock %}
+{% block navbar_subtitle %}Anonymous tutoring{% endblock %}
+
+{% block content %}
+<div class="container" style="display:flex;align-items:flex-start;justify-content:center;padding-top:8vh;">
+  <div class="card" style="max-width:440px;width:100%;padding:24px;">
+    {% if mode == 'password' %}
+      <h2 style="margin:0 0 6px;font-size:18px;">Enter password to start</h2>
+      <p class="muted" style="font-size:13px;margin:0 0 14px;">
+        This tutoring link is password-protected. Ask your instructor for the password.
+      </p>
+      {% if error %}<div class="muted" style="color:#b91c1c;font-size:13px;margin-bottom:10px;">{{ error }}</div>{% endif %}
+      <form method="POST" action="/t/{{ slug }}/start">
+        <input type="password" name="password" autocomplete="off" autofocus placeholder="Password"
+               style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;border:1px solid #d1d5db;border-radius:8px;">
+        <button type="submit" class="btn" style="margin-top:12px;width:100%;">Start tutoring chat</button>
+      </form>
+    {% else %}
+      <h2 style="margin:0 0 6px;font-size:18px;">{{ heading or "Tutoring unavailable" }}</h2>
+      <p class="muted" style="font-size:13px;margin:0;">{{ message or "This tutoring link is not available." }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

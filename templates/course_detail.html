@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}{{ course.name }} · LeafTutor{% endblock %}
+{% block navbar_subtitle %}Courses{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-scroll">
+  <div class="page-inner">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="/courses">Courses</a> / {{ course.name }}
+    </nav>
+
+    <h1 class="page-title">{{ course.name }}</h1>
+    <p class="page-sub">
+      {{ course.code or '' }}{% if course.code and course.term %} · {% endif %}{{ course.term or '' }}
+    </p>
+
+    <section class="panel">
+      <h2>About this course</h2>
+      <dl class="facts">
+        {% if course.instructor %}<div><dt>Instructor</dt><dd>{{ course.instructor }}</dd></div>{% endif %}
+        {% if course.term %}<div><dt>Term</dt><dd>{{ course.term }}</dd></div>{% endif %}
+        <div><dt>Assignments</dt><dd>{{ course.assignments|length }}</dd></div>
+      </dl>
+      {% if course.description %}<p class="prose" style="margin-top:14px;">{{ course.description }}</p>{% endif %}
+    </section>
+
+    {% if not is_student %}
+    <p style="margin-bottom:var(--g);">
+      <a class="btn-ghost" style="display:inline-block;padding:8px 16px;border-radius:var(--lt-radius);text-decoration:none;"
+         href="/instructor?class={{ course.id|urlencode }}&view=roster">Roster &amp; audit</a>
+      {#
+      <button type="button" id="delCourseBtn" class="btn-ghost"
+              style="margin-left:8px;padding:8px 16px;border-radius:var(--lt-radius);color:#b91c1c;cursor:pointer;">Delete course</button>
+              #}
+    </p>
+    {% endif %}
+
+    <section class="panel" id="assignments">
+      <h2>Assignments</h2>
+    {% if not is_student %}
+      <form id="addAsgForm" style="display:grid;grid-template-columns:1fr auto auto auto;gap:8px;margin-bottom:8px;align-items:end;">
+        <label style="display:grid;gap:4px;">
+          <span class="muted">Title</span>
+          <input type="text" id="addAsgTitle" placeholder="New assignment title" required maxlength="200" style="padding:8px 10px;">
+        </label>
+        <label style="display:grid;gap:4px;">
+          <span class="muted">Due date</span>
+          <input type="date" id="addAsgDue" style="padding:8px 10px;">
+        </label>
+        <label style="display:grid;gap:4px;">
+          <span class="muted">Time</span>
+          <input type="time" id="addAsgTime" style="padding:8px 10px;">
+        </label>
+        <button type="submit" id="addAsgBtn" class="btn-ghost" style="padding:9px 16px;border-radius:var(--lt-radius);">+ Add</button>
+      </form>
+      <div id="addAsgMsg" class="muted" style="margin-bottom:12px;min-height:1.2em;" aria-live="polite"></div>
+      {% endif %}
+    
+      {% if course.assignments %}
+      <div class="asg-list">
+        {% for a in course.assignments %}
+        <a class="asg-row" href="{% if is_student %}/student?assignment={{ a.id|urlencode }}{% else %}/instructor?class={{ course.id|urlencode }}&view=assignments&assignment={{ a.id|urlencode }}{% endif %}">
+          <div>
+            <div class="asg-title">{{ a.title }}</div>
+            {% if a.due %}<div class="asg-due">Due {{ a.due|nice_date }}{% if a.due_time %} at {{ a.due_time|nice_time }}{% endif %}</div>{% endif %}
+          </div>
+          {#
+          <span style="display:flex;align-items:center;gap:10px;">
+            {% if a.status %}<span class="status {{ a.status }}">{{ a.status|capitalize }}</span>{% endif %}
+            <button type="button" class="btn-ghost" data-del-asg="{{ a.id }}" data-title="{{ a.title }}"
+                    title="Delete assignment" aria-label="Delete assignment {{ a.title }}"
+                    style="padding:4px 10px;border-radius:var(--lt-radius);color:#b91c1c;cursor:pointer;">Delete</button>
+          </span>
+          #}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="course-empty">{{ "No assignments are available yet. Check back later." if is_student else "No assignments yet." }}</div>
+      {% endif %}
+    </section>
+    {% if not is_student %}
+    <script>
+    (function () {
+      const CLASS_ID = {{ course.id|tojson }};
+      // Field names the backend may use for due data. Adjust if your API differs.
+      const DUE_KEYS = ['due', 'due_date', 'due_at'];
+    
+      const form = document.getElementById('addAsgForm');
+      const btn  = document.getElementById('addAsgBtn');
+      const msg  = document.getElementById('addAsgMsg');
+      const say  = (t) => { msg.textContent = t; };
+    
+      const api = async (url, method, body) => {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: body ? JSON.stringify(body) : undefined
+        });
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok && !data.error, data };
+      };
+    
+      const listAssignments = async () => {
+        const res = await fetch('/api/instructor/assignments?class_id=' + encodeURIComponent(CLASS_ID));
+        const data = await res.json().catch(() => []);
+        return Array.isArray(data) ? data : [];
+      };
+      /*
+      // Delete an assignment (button sits inside the row link, so block navigation)
+      document.querySelector('.asg-list')?.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-del-asg]');
+        if (!b) return;
+        e.preventDefault(); e.stopPropagation();
+        const title = b.getAttribute('data-title') || 'this assignment';
+        if (!confirm('Delete assignment "' + title + '"?\n\nThis permanently removes its files, tutoring chats and links. This cannot be undone.')) return;
+        b.disabled = true;
+        const r = await api('/api/instructor/assignments/' + encodeURIComponent(b.getAttribute('data-del-asg')), 'DELETE');
+        if (!r.ok) { say(r.data.error || 'Could not delete assignment.'); b.disabled = false; return; }
+        location.hash = 'assignments';
+        location.reload();
+      });
+
+      // Delete the whole course
+      document.getElementById('delCourseBtn').addEventListener('click', async (e) => {
+        if (!confirm('Delete this course?\n\nThis permanently removes the course, its assignments, files, roster and tutoring chats. This cannot be undone.')) return;
+        e.target.disabled = true;
+        const r = await api('/api/classes/' + encodeURIComponent(CLASS_ID), 'DELETE');
+        if (!r.ok) { alert(r.data.error || 'Could not delete course.'); e.target.disabled = false; return; }
+        location.href = '/courses';
+      });
+      */
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('addAsgTitle').value.trim();
+        const due   = document.getElementById('addAsgDue').value;    // YYYY-MM-DD
+        const time  = document.getElementById('addAsgTime').value;   // HH:MM
+        if (!title) return;
+    
+        btn.disabled = true;
+        say('Creating…');
+        let note = '';
+    
+        try {
+          // 1) create (same call the dashboard makes)
+          const created = await api('/api/instructor/assignments', 'POST',
+                                    { class_id: CLASS_ID, title });
+          if (!created.ok) throw new Error(created.data.error || 'Could not create assignment.');
+    
+          // 2) optional due date
+          if (due) {
+            let id = created.data.id || (created.data.assignment && created.data.assignment.id);
+            if (!id) {
+              const match = (await listAssignments()).filter(a => (a.title || a.name) === title).pop();
+              id = match && match.id;
+            }
+            if (!id) {
+              note = 'Created, but could not find the new assignment to set its due date.';
+            } else {
+              const patch = { due, due_date: due };
+              if (time) patch.due_time = time;
+              await api('/api/instructor/assignments/' + encodeURIComponent(id), 'PATCH', patch);
+    
+              // 3) verify it stuck
+              const saved = (await listAssignments()).find(a => a.id === id);
+              const stored = saved && DUE_KEYS.some(k => saved[k]);
+              if (!stored) note = 'Created, but the server did not save the due date. Its API may not support it yet.';
+            }
+          }
+    
+          if (note) {
+            say(note);
+            setTimeout(() => { location.hash = 'assignments'; location.reload(); }, 3500);
+          } else {
+            location.hash = 'assignments';
+            location.reload();
+          }
+        } catch (err) {
+          say(err.message || 'Something went wrong.');
+          btn.disabled = false;
+        }
+      });
+    })();
+    </script>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

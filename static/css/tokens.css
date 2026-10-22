@@ -1,0 +1,91 @@
+/* ══════════════════════════════════════════════════════════════
+   LeafTutor — tokens.css
+   Design-token layer. Light theme, neutral surfaces + blue accent,
+   modeled on the LobeChat / antd light design system.
+   Loaded BEFORE app.css / super.css so every sheet can use --lt-*.
+   Names are semantic so a dark theme could later override this block.
+   ══════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Surfaces (layered, lightest → most elevated) ── */
+  --lt-bg-layout: #f5f5f5;
+  /* page / app background        */
+  --lt-bg-container: #ffffff;
+  /* cards, panels, sidebars      */
+  --lt-bg-elevated: #ffffff;
+  /* popovers, modals, navbar     */
+  --lt-bg-mask: rgba(0, 0, 0, .45);
+  /* modal / drawer overlay       */
+  --lt-bg-spotlight: rgba(0, 0, 0, .85);
+  /* tooltips                     */
+
+  /* ── Fills (hover / subtle backgrounds) ── */
+  --lt-fill: rgba(0, 0, 0, .15);
+  --lt-fill-secondary: rgba(0, 0, 0, .06);
+  --lt-fill-tertiary: rgba(0, 0, 0, .04);
+  /* user bubble, row hover   */
+  --lt-fill-quaternary: rgba(0, 0, 0, .02);
+
+  /* ── Text ladder ── */
+  --lt-text: rgba(0, 0, 0, .88);
+  --lt-text-secondary: rgba(0, 0, 0, .65);
+  --lt-text-tertiary: rgba(0, 0, 0, .45);
+  --lt-text-quaternary: rgba(0, 0, 0, .25);
+  --lt-text-on-primary: #ffffff;
+
+  /* ── Borders ── */
+  --lt-border: #d9d9d9;
+  --lt-border-secondary: #f0f0f0;
+
+  /* ── Primary (blue) ── */
+  --lt-primary: #1677ff;
+  --lt-primary-hover: #4096ff;
+  --lt-primary-active: #0958d9;
+  --lt-primary-bg: #e6f4ff;
+  --lt-primary-bg-hover: #bae0ff;
+  --lt-primary-border: #91caff;
+
+  /* ── Semantic ── */
+  --lt-success: #52c41a;
+  --lt-success-bg: #f6ffed;
+  --lt-success-border: #b7eb8f;
+  --lt-warning: #faad14;
+  --lt-warning-bg: #fffbe6;
+  --lt-warning-border: #ffe58f;
+  --lt-warning-text: #874d00;
+  --lt-error: #ff4d4f;
+  --lt-error-active: #d9363e;
+  --lt-error-bg: #fff2f0;
+  --lt-error-border: #ffccc7;
+  --lt-error-text: #a8071a;
+
+  /* ── Radius (moderate, LobeChat-like) ── */
+  --lt-radius-sm: 4px;
+  --lt-radius: 6px;
+  --lt-radius-lg: 8px;
+  --lt-radius-xl: 12px;
+
+  /* ── Elevation (soft, low-contrast) ── */
+  --lt-shadow: 0 6px 16px -8px rgba(0, 0, 0, .08),
+    0 9px 28px 0 rgba(0, 0, 0, .05),
+    0 12px 48px 16px rgba(0, 0, 0, .03);
+  --lt-shadow-secondary: 0 1px 2px 0 rgba(0, 0, 0, .03),
+    0 1px 6px -1px rgba(0, 0, 0, .02),
+    0 2px 4px 0 rgba(0, 0, 0, .02);
+  --lt-shadow-tertiary: 0 1px 2px 0 rgba(0, 0, 0, .06);
+
+  /* ── Typography ── */
+  --lt-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --lt-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo,
+    Courier, monospace;
+  --lt-fz: 14px;
+  --lt-lh: 1.5715;
+
+  /* ── Layout dimensions (shared across sheets) ── */
+  --nav-h: 56px;
+  --g: 16px;
+  --handle-w: 14px;
+  --rail-gap: 8px;
+  --rail-w: 220px;
+  --rail-w-collapsed: 56px;
+}

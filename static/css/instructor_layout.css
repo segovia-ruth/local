@@ -1,0 +1,89 @@
+/* ══════════════════════════════════════════════════════════════
+   LeafTutor — instructor dashboard layout
+   Target: body > div.app-shell > main > div.main-layout > div.container
+           (the #rosterAssignSplit.lt-split with the two cards inside)
+
+   Before: two 50/50 flex columns (assignments | roster) with a drag handle.
+   After : a main workspace (assignments) + a fixed-width side rail
+           (roster / all-class chats / assistant). Each side scrolls on its own,
+           so the tab bars and the breadcrumb stay put. Below 1100px the rail
+           drops underneath the workspace.
+
+   Paste inside the <style> block in instructor.html (or load after app.css).
+   Course mode (/instructor?class=…) is left alone — its own rules still apply.
+   Switch to a stacked layout any time with:
+     document.documentElement.classList.toggle('lt-layout-stacked')
+   ══════════════════════════════════════════════════════════════ */
+
+html:not(.course-mode) .main-layout > .container {
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Grid replaces flex, so the inline `flex: 0 0 50%` on the two sections is ignored */
+html:not(.course-mode) #rosterAssignSplit.lt-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(320px, 30vw, 440px);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 12px;
+  height: 100%;
+  padding: 0;
+}
+
+/* The drag-to-resize handle has no job in a fixed rail */
+html:not(.course-mode) #rosterAssignSplit .lt-handle { display: none; }
+
+html:not(.course-mode) #assignSection,
+html:not(.course-mode) #rosterSection {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+html:not(.course-mode) #assignSection { grid-column: 1; }
+html:not(.course-mode) #rosterSection { grid-column: 2; }
+
+/* Rail is secondary: slightly tighter */
+html:not(.course-mode) #rosterSection { font-size: 13px; }
+
+/* Collapsed rail (→ button): shrink the column to a thin strip.
+   The class name depends on toggleRosterPanel() — all common spellings are covered. */
+html:not(.course-mode) #rosterAssignSplit:has(#rosterSection.collapsed),
+html:not(.course-mode) #rosterAssignSplit:has(#rosterSection.is-collapsed),
+html:not(.course-mode) #rosterAssignSplit:has(#rosterSection[data-collapsed="true"]) {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+/* ---------- Narrow screens: rail goes below the workspace ---------- */
+@media (max-width: 1100px) {
+  html:not(.course-mode) .main-layout > .container { overflow-y: auto; }
+  html:not(.course-mode) #rosterAssignSplit.lt-split,
+  html:not(.course-mode) #rosterAssignSplit:has(#rosterSection.collapsed) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    height: auto;
+  }
+  html:not(.course-mode) #assignSection,
+  html:not(.course-mode) #rosterSection {
+    grid-column: 1;
+    overflow-y: visible;
+  }
+}
+
+/* ---------- Optional: stacked layout (workspace on top, roster below) ---------- */
+html.lt-layout-stacked:not(.course-mode) .main-layout > .container { overflow-y: auto; }
+html.lt-layout-stacked:not(.course-mode) #rosterAssignSplit.lt-split {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
+  height: auto;
+}
+html.lt-layout-stacked:not(.course-mode) #assignSection,
+html.lt-layout-stacked:not(.course-mode) #rosterSection {
+  grid-column: 1;
+  overflow-y: visible;
+}

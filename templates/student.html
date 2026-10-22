@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+{% block title %}AI Tutor - LeafTutor{% endblock %}
+{% block body_class %}student-page{% endblock %}
+
+{% block extra_head %}
+<!-- Syntax highlighting for code shown in chat (editor-style) -->
+<link rel="stylesheet" href="{{ static_v('vendor/highlight/atom-one-dark.min.css') }}">
+<script src="{{ static_v('vendor/highlight/highlight.min.js') }}"></script>
+<!-- QR share (open this chat on a phone): vendored generator + LT.qr popover/overlay -->
+<link rel="stylesheet" href="{{ static_v('css/qr.css') }}">
+<script src="{{ static_v('vendor/qrcode/qrcode.min.js') }}"></script>
+<script src="{{ static_v('js/core/qr.js') }}"></script>
+{% endblock %}
+
+{% block navbar_subtitle %}Your Smart Coding Assistant{% endblock %}
+
+
+{% block content %}
+  <div class="container" x-init="$store.chat.init()">
+    {% if not anon %}
+    <!-- Left Sidebar -->
+    <div class="sidebar" id="sidebar" :class="{ collapsed: $store.chat.sidebarCollapsed }">
+      <div class="sidebar-header">
+        <h3>Projects</h3>
+        <div class="sidebar-controls">
+          {% if feature_add_class %}<button @click="$store.chat.addProject()" class="add-project-btn" title="Add new project">+</button>{% endif %}
+          <button @click="$store.chat.toggleSidebar()" class="collapse-btn" id="sidebarToggle"
+                  :title="$store.chat.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+                  x-text="$store.chat.sidebarCollapsed ? '→' : '←'">←</button>
+        </div>
+      </div>
+      <div class="project-list" id="projectList" x-cloak>
+        <template x-if="$store.chat.projects.length === 0">
+          <div class="empty-state">No assignments yet. Check back later or join a class from your account menu.</div>
+        </template>
+        <template x-for="project in $store.chat.projects" :key="project.id">
+          <div class="project-item" :class="{ active: project.id === $store.chat.currentProjectId }" @click="$store.chat.switchProject(project.id)">
+            <div class="project-icon" x-text="(project.name || 'P').substring(0,2).toUpperCase()"></div>
+            <div class="project-info">
+              <div class="project-name" x-text="project.name"></div>
+              <template x-if="$store.chat.projectCourseLabel(project)">
+                <div class="project-course" x-text="$store.chat.projectCourseLabel(project)"></div>
+              </template>
+              <div class="project-meta" x-text="project.chatHistory.length + ' messages'"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Unified Chat + Editor Split Layout -->
+    <div id="chatEditorSplit" class="lt-split" role="group" aria-label="Chat and Editor">
+
+      <!-- Chat Section -->
+      <section class="chat" id="chatSection" role="region" aria-label="Chat interface"
+               @dragenter="$store.chat.onDragEnter($event)" @dragover="$store.chat.onDragOver($event)"
+               @dragleave="$store.chat.onDragLeave($event)" @drop="$store.chat.onDrop($event)">
+        <div class="section-header">
+          <h2>Chat{% if anon and anon_assignment_title %} ({{ anon_assignment_title }}){% endif %}</h2>
+          {% if not anon %}
+          <div class="section-controls">
+            {% if feature_deep_coding %}
+            <button x-show="$store.chat.canDeepCode" @click="$store.chat.openDeepCoding()" class="clear-btn"
+                    aria-label="Open Deep Coding IDE"
+                    title="Switch to the Deep Coding IDE — this conversation will open there from now on">
+              <span>&lt;/&gt; Deep Coding</span>
+            </button>
+            {% endif %}
+            <button @click="$store.chat.flagHelp()" class="clear-btn" aria-label="Ask my instructor for help"
+                    title="Still stuck? Flag this chat for your instructor — they'll see the conversation and what you tried">
+              <span x-text="$store.chat.helpFlagged ? '✓ Instructor notified' : '🙋 Instructor help'"></span>
+            </button>
+            <button @click="$store.chat.startNewThread()" class="clear-btn" aria-label="Start a new thread" title="Start a new thread">
+              <span>+ New thread</span>
+            </button>
+            <!-- QR to continue on a phone: hover = quick preview, click = large overlay.
+                 Logged-in chats need the student's username/password on the phone. -->
+            <button type="button" class="clear-btn" aria-label="Show a QR code to open LeafTutor on your phone"
+                    title="Open LeafTutor on your phone"
+                    @mouseenter="LT.qr.pop($el, location.origin + '/student', 'Scan to open LeafTutor on your phone')"
+                    @mouseleave="LT.qr.unpop()"
+                    @click="LT.qr.show(location.origin + '/student', 'Open LeafTutor on your phone', 'Scan with your phone camera, then sign in with your username and password to pick up your chats.')">
+              <span>📱 QR</span>
+            </button>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if anon %}
+        <!-- Anonymous chat top bar: alias, traceable link (copy/favourite), new chat -->
+        <div class="anon-topbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
+          <!-- a closed chat is frozen: its name is what the instructor saw when they closed it -->
+          <input id="anonAlias"
+                 :placeholder="$store.chat.sessionClosed ? 'Chat name (closed — cannot be changed)' : 'Name this chat (optional)'"
+                 :disabled="$store.chat.sessionClosed"
+                 :title="$store.chat.sessionClosed ? 'This conversation is closed by the instructor (view only).' : ''"
+                 x-init="$store.chat.anonAlias = {{ anon_alias|tojson|forceescape }}" x-model="$store.chat.anonAlias"
+                 @blur="$store.chat.anonSaveAlias()" @keydown.enter.prevent="$event.target.blur()"
+                 style="flex:1;min-width:150px;font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;">
+          <button class="btn small" @click="$store.chat.anonBookmark()" title="Save this chat to your browser's Favourites/Bookmarks so you can reopen it later">🔖 Bookmark</button>
+          <button class="btn small" @click="$store.chat.anonCopyLink()" title="Copy this chat's link">🔗 Copy link</button>
+          <!-- QR of this chat's traceable link: scanning continues the SAME conversation
+               on a phone, no login needed (hover = preview, click = large overlay). -->
+          <button class="btn small" type="button" title="Show a QR code that opens this chat on a phone"
+                  @mouseenter="LT.qr.pop($el, $store.chat.anon.share_url, 'Scan to continue this chat on your phone')"
+                  @mouseleave="LT.qr.unpop()"
+                  @click="LT.qr.show($store.chat.anon.share_url, 'Continue this chat on your phone', 'No login needed — scanning opens this same conversation.')">📱 QR</button>
+          {% if feature_deep_coding %}
+          <button class="btn small" @click="$store.chat.openDeepCoding()"
+                  title="Switch to the Deep Coding IDE — this chat will open there from now on">&lt;/&gt; Deep Coding</button>
+          {% endif %}
+          <!-- escalation is off on a closed chat (the server rejects it too) -->
+          <button class="btn small" @click="$store.chat.flagHelp()" x-show="!$store.chat.sessionClosed"
+                  title="Still stuck? Flag this chat for your instructor — they'll see the conversation and what you tried"
+                  x-text="$store.chat.helpFlagged ? '✓ Instructor notified' : '🙋 Instructor help'"></button>
+          <button class="btn small" @click="$store.chat.anonNewChat()"
+                  :disabled="$store.chat.anon && $store.chat.anon.view_only"
+                  :title="($store.chat.anon && $store.chat.anon.view_only) ? 'This link is view-only — new chats cannot be started' : 'Start a new chat'">+ New chat</button>
+        </div>
+        {% endif %}
+
+        <!-- Orphan conversation title — shown only for custom (no-assignment) sessions -->
+        <div id="orphanTitleBar" class="orphan-title-bar" x-show="$store.chat.isCustomProject" x-cloak style="display:block;">
+          <!-- a closed conversation is frozen, title included -->
+          <span id="orphanTitleDisplay" class="orphan-title-display" x-show="!$store.chat.orphanEditing"
+                @click="$store.chat.startEditOrphan()"
+                :title="$store.chat.sessionClosed ? 'This conversation is closed by the instructor (view only).' : 'Click to rename'"
+                x-text="$store.chat.orphanTitle + ($store.chat.sessionClosed ? ' 🔒' : '')"></span>
+          <input type="text" id="orphanTitleInput" class="orphan-title-input" x-show="$store.chat.orphanEditing"
+                 x-model="$store.chat.orphanInput" placeholder="Enter conversation name"
+                 @keydown="$store.chat.onOrphanKey($event)" @blur="$store.chat.saveOrphan()" />
+        </div>
+
+        {% if not anon %}
+        <!-- Thread (session) selector — previous sessions for the current project -->
+        <div id="threadBar" class="thread-bar" x-show="$store.chat.showThreadBar" x-cloak style="display:flex;">
+          <span class="thread-bar-label">Sessions</span>
+          <div id="threadPills" class="thread-pills">
+            <template x-for="t in $store.chat.threads" :key="t.session_id">
+              <button class="thread-pill" :class="{ active: t.session_id === ($store.chat.currentProject && $store.chat.currentProject.activeSessionId) }"
+                      :title="$store.chat.threadTitle(t)" @click="$store.chat.switchThread(t.session_id)" x-text="$store.chat.threadLabel(t)"></button>
+            </template>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Uploaded files for the current session (most recent first) -->
+        <div id="sessionFilesBar" class="session-files-bar" x-show="$store.chat.sessionFiles.length" x-cloak style="display:flex;">
+          <span class="session-files-label">Files</span>
+          <!-- files grouped by their logical folder (folder/subfolder/file). Root files have no
+               folder tag; folders show a 📁 path label before their chips. -->
+          <div id="sessionFilesList" class="session-files-list">
+            <template x-for="g in $store.chat.sessionFileGroups" :key="g.dir || '(root)'">
+              <div class="session-files-group">
+                <span class="session-files-folder" x-show="g.dir" x-text="'📁 ' + g.dir"></span>
+                <template x-for="f in g.files" :key="f.id">
+                  <button type="button" class="session-file-chip" :class="{ code: f.compilable, missing: !f.available }"
+                          :title="$store.chat.sessionFileTitle(f)" @click="$store.chat.openFile(f.id)">
+                    <span class="sfc-icon" x-text="f.compilable ? '</>' : '📄'"></span>
+                    <span class="sfc-name" x-text="f.name"></span>
+                  </button>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="section-content" id="chatContent">
+          <!-- Drag-drop overlay (shown while a file is dragged over the chat area) -->
+          <div id="dragDropOverlay" class="drag-drop-overlay" :class="{ active: $store.chat.dragging }"
+               :aria-hidden="$store.chat.dragging ? 'false' : 'true'">
+            <div class="drag-drop-hint">&#x1F4C4; Drop file to upload</div>
+          </div>
+
+          <div id="messages" role="log" aria-live="polite" aria-atomic="false" x-cloak
+               :class="{ 'chat-closed': $store.chat.sessionClosed }">
+            <template x-for="msg in $store.chat.messages" :key="msg.id">
+              <div>
+                <!-- Reloaded-thread file marker -->
+                <div x-show="msg.kind === 'file'" class="file-marker">
+                  <button type="button" class="thread-file-chip" :class="{ code: msg.compilable, disabled: !msg.fileId }"
+                          :title="msg.fileId ? 'Open to edit, compile & run' : ''"
+                          @click="msg.fileId && $store.chat.openFile(msg.fileId)">
+                    <span class="tfc-icon" x-text="msg.compilable ? '</>' : '📄'"></span>
+                    <span class="tfc-name" x-text="msg.filename || 'file'"></span>
+                  </button>
+                </div>
+
+                <!-- Student (user) turn -->
+                <div x-show="msg.kind === 'user'" class="message user">
+                  <div class="message-content">
+                    <template x-if="msg.asRich"><span x-rich="{ content: msg.content }"></span></template>
+                    <template x-if="!msg.asRich">
+                      <span>
+                        <span x-show="msg.content" x-text="msg.content"></span>
+                        <em x-show="!msg.content" x-text="'Uploaded ' + msg.attCount + ' file(s)'"></em>
+                      </span>
+                    </template>
+                    <div class="msg-attachments" x-show="msg.attachments">
+                      <template x-for="att in (msg.attachments || [])" :key="att.key">
+                        <span class="msg-attachment" :class="{ clickable: att.fileId }"
+                              :title="att.fileId ? 'Open to edit, compile & run' : ''"
+                              @click="att.fileId && $store.chat.openFile(att.fileId)" x-text="'📎 ' + att.name"></span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Assistant turn -->
+                <div x-show="msg.kind === 'assistant'" class="message ai" :class="{ 'message-failed': msg.failed || msg.netError }">
+                  <div class="message-content" x-rich="{ content: msg.content, html: msg.html }"></div>
+                  <!-- retrying re-generates and SAVES a new answer, so it's off on a closed thread -->
+                  <div class="msg-retry-bar" x-show="msg.failed && msg.taskId && !$store.chat.sessionClosed">
+                    <button class="msg-retry-btn" :disabled="msg.retrying" @click="$store.chat.retryTask(msg)"
+                            x-text="msg.retrying ? 'Retrying…' : '↻ Retry'"></button>
+                  </div>
+                  <div class="msg-retry-bar" x-show="msg.netError && !$store.chat.sessionClosed">
+                    <button class="msg-retry-btn" @click="$store.chat.retryNet(msg)">↻ Retry</button>
+                  </div>
+                  {% if feature_deep_coding %}
+                  <!-- Uploaded source is explained (with a predicted result) but never compiled
+                       here — compiling lives in Deep Coding, so point there instead -->
+                  <div class="compile-offer" x-show="msg.deepHint{% if not anon %} && $store.chat.canDeepCode{% endif %}">
+                    <span class="compile-offer-label">💡 <strong x-text="msg.deepHint && msg.deepHint.filename"></strong> was explained, not run — to actually compile &amp; run it, use Deep Coding.</span>
+                    <button class="compile-run-btn" type="button" @click="$store.chat.openDeepCoding()">&lt;/&gt; Open Deep Coding</button>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+            </template>
+
+            <!-- "Thinking" indicator -->
+            <div x-show="$store.chat.thinking" class="message ai chat-thinking">
+              <div class="message-content"><span class="spinner spinner-sm"></span></div>
+            </div>
+
+            <!-- Welcome / empty-thread hint -->
+            <div x-show="$store.chat.showWelcome" id="welcomeHint" class="empty-state">
+              👋 <strong>Welcome!</strong><br>
+              To get started, you can <strong>upload your existing source code files</strong>, or <strong>ask a question</strong>.
+            </div>
+          </div>
+
+          <!-- Staged files waiting to be sent with the next message -->
+          <div id="pendingFiles" class="pending-files" x-show="$store.chat.pendingFiles.length" x-cloak style="display:flex;">
+            <template x-for="p in $store.chat.pendingFiles" :key="p.id">
+              <div class="pending-file">
+                <span class="pf-name" x-text="p.name"></span>
+                <span class="pf-size" x-text="p.size"></span>
+                <button class="pf-remove" title="Remove" :aria-label="'Remove ' + p.name" @click="$store.chat.removePendingFile(p.id)">&times;</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- Closed conversation: view-only notice replaces active composing -->
+          <div class="session-closed-banner" x-show="$store.chat.sessionClosed" x-cloak role="status">
+            🔒 This conversation has been closed by the instructor. You can review it, but new messages, uploads and code runs are disabled.
+          </div>
+
+          <div class="input-row">
+            <button @click="$store.chat.triggerFileUpload()" class="upload-inline-btn" aria-label="Upload file" title="Add files" :disabled="$store.chat.sessionClosed">+</button>
+            <textarea
+              id="userInput"
+              rows="1"
+              :placeholder="$store.chat.sessionClosed ? 'This conversation is closed (view only).' : 'Type your question…  (Enter to send · Shift+Enter for a new line)'"
+              aria-label="Chat message input"
+              x-model="$store.chat.messageText"
+              x-init="$store.chat.resizeComposer($el); $el.focus()"
+              @input="$store.chat.resizeComposer($el)"
+              @keydown="$store.chat.onComposerKey($event)"
+              :disabled="$store.chat.sessionClosed"
+            ></textarea>
+            <button @click="$store.chat.send()" aria-label="Send message" :disabled="$store.chat.sessionClosed">
+              <span class="btn-text">Send</span>
+              <span class="btn-icon">→</span>
+            </button>
+          </div>
+          <!-- Hidden file input -->
+          <input type="file" id="fileInput" multiple style="display:none;" aria-label="Select file to upload" @change="$store.chat.onFilePicked($event)" />
+          <div id="uploadStatus" role="status" aria-live="polite" :class="$store.chat.uploadStatus.cls" x-text="$store.chat.uploadStatus.text" style="margin-top: 8px; font-size: 13px;"></div>
+        </div>
+      </section>
+
+    </div><!-- /#chatEditorSplit -->
+  </div><!-- /.container -->
+
+  <!-- File compile/edit window (opened from the files bar or an in-thread file chip) -->
+  <div id="studentFileModal" class="sf-modal" :class="{ open: $store.chat.sfOpen }" @click="if ($event.target === $el) $store.chat.closeFile()">
+    <div class="sf-box">
+      <div class="sf-header">
+        <!-- closed conversation: the file stays readable, but nothing in here can change it -->
+        <span id="sfTitle" class="sf-title sf-rename-target" x-show="!$store.chat.sfRenaming"
+              :class="{ clickable: $store.chat.sf && !$store.chat.sf.error && $store.chat.sf.id && !$store.chat.sessionClosed }"
+              @click="($store.chat.sf && !$store.chat.sf.error && $store.chat.sf.id && !$store.chat.sessionClosed) && $store.chat.startSfRename()"
+              :title="$store.chat.sessionClosed ? 'This conversation is closed by the instructor (view only).'
+                        : (($store.chat.sf && !$store.chat.sf.error && $store.chat.sf.id) ? 'Click to rename' : '')"
+              x-text="(($store.chat.sf && !$store.chat.sf.error) ? ($store.chat.sf.name || 'File') : '') + ($store.chat.sessionClosed ? ' 🔒' : '')"></span>
+        <span class="sf-rename-wrap" x-show="$store.chat.sfRenaming" x-cloak>
+          <input id="sfRenameInput" class="sf-rename-input" type="text" spellcheck="false" autocomplete="off"
+                 x-model="$store.chat.sfRenameValue"
+                 @keydown.enter.prevent="$store.chat.commitSfRename()"
+                 @keydown.escape.prevent="$store.chat.cancelSfRename()"
+                 @blur="$store.chat.commitSfRename()">
+          <span class="sf-rename-err" x-show="$store.chat.sfRenameErr" x-text="$store.chat.sfRenameErr"></span>
+        </span>
+        <div class="sf-header-actions">
+          <button class="btn small" id="sfDownloadBtn" type="button" @click="$store.chat.downloadFile()">⤓ Download</button>
+          <button class="btn small" type="button" @click="$store.chat.closeFile()">✕ Close</button>
+        </div>
+      </div>
+      <div class="sf-body">
+        <div id="sfLoading" class="sf-loading" x-show="!$store.chat.sf">Loading…</div>
+
+        <template x-if="$store.chat.sf && $store.chat.sf.error">
+          <div id="sfError" class="sf-muted" x-text="$store.chat.sf.error"></div>
+        </template>
+
+        <template x-if="$store.chat.sf && !$store.chat.sf.error">
+          <div>
+            <div id="sfMeta" class="sf-meta" x-text="$store.chat.sfMeta($store.chat.sf)"></div>
+
+            <div class="session-closed-banner" x-show="$store.chat.sessionClosed" x-cloak role="status">
+              🔒 This conversation is closed by the instructor. You can read this file and any earlier
+              analysis or output, but analyzing, editing, renaming and running are disabled.
+            </div>
+
+            <!-- Code analysis (source files) -->
+            <div class="sf-section" x-show="$store.chat.sf.compilable">
+              <div class="sf-section-head">
+                <span class="sf-label">Code analysis</span>
+                <button class="btn small" type="button" x-show="!$store.chat.sessionClosed"
+                        :disabled="$store.chat.sfBusy.analyze" @click="$store.chat.analyzeFile()"
+                        x-text="$store.chat.sf.last_analysis ? 'Re-analyze' : 'Analyze'"></button>
+              </div>
+              <div class="sf-analysis"
+                   x-html="$store.chat.sfBusy.analyze ? '<div class=\'sf-muted\'>Analyzing…</div>' : ($store.chat.sf.analysisError ? '' : $store.chat.sfAnalysisHtml($store.chat.sf))"></div>
+              <div class="sf-muted" x-show="$store.chat.sf.analysisError && !$store.chat.sfBusy.analyze" x-text="$store.chat.sf.analysisError"></div>
+            </div>
+
+            <!-- Editable content -->
+            <div class="sf-section" x-show="$store.chat.sf.editable">
+              <div class="sf-label">File content
+                <span class="sf-muted" x-text="$store.chat.sf.content_error ? ('— ' + $store.chat.sf.content_error)
+                        : ($store.chat.sessionClosed ? '— view only (this conversation is closed)' : '— changes are saved to your file')"></span>
+              </div>
+              <!-- readonly (not disabled) on a closed thread: the code stays readable and selectable -->
+              <textarea class="sf-editor" spellcheck="false" x-tab-indent
+                        x-code-editor="$store.chat.sf ? { content: $store.chat.sf.content, language: $store.chat.sf.language, name: $store.chat.sf.name } : null"
+                        x-model="$store.chat.sf.content" :disabled="!!$store.chat.sf.content_error"
+                        :readonly="$store.chat.sessionClosed"></textarea>
+              <div class="sf-actions" x-show="!$store.chat.sessionClosed">
+                <button class="btn small" type="button" :disabled="!!$store.chat.sf.content_error || $store.chat.sfBusy.save" @click="$store.chat.saveFile()">Save</button>
+                <span class="sf-muted" x-text="$store.chat.sfSaveStatus"></span>
+              </div>
+            </div>
+
+            <!-- Compile & run (source files) -->
+            <div class="sf-section" x-show="$store.chat.sf.compilable">
+              <div class="sf-label">Compile &amp; Run <span class="sf-muted">— standard input, one value per line (optional)</span></div>
+              <textarea class="sf-stdin" rows="3" x-model="$store.chat.sfStdin" x-show="!$store.chat.sessionClosed"
+                        placeholder="Leave empty if your program does not read keyboard input."></textarea>
+              <div class="sf-actions" x-show="!$store.chat.sessionClosed">
+                <button class="btn small" type="button" :disabled="$store.chat.sfBusy.run" @click="$store.chat.runFile()">&#9654; Compile &amp; Run</button>
+                <span class="sf-muted" x-text="$store.chat.sfRunStatus"></span>
+              </div>
+              <div x-show="$store.chat.sf.last_run" style="margin-top:10px;">
+                <div class="sf-label">Output</div>
+                <pre class="sf-output" x-text="$store.chat.sfRunText($store.chat.sf)"></pre>
+                <div x-show="$store.chat.sf.last_run && $store.chat.sf.last_run.auto_repair_diff && $store.chat.sf.last_run.auto_repair_diff.length"
+                     x-html="autoRepairDiffHtml($store.chat.sf.last_run && $store.chat.sf.last_run.auto_repair_diff)"></div>
+              </div>
+            </div>
+
+            <!-- Non-code summary -->
+            <div class="sf-section" x-show="!$store.chat.sf.compilable && !$store.chat.sf.editable">
+              <div class="sf-label">Summary</div>
+              <div class="sf-summary" x-text="$store.chat.sf.summary || 'No preview available for this file type. Use Download to view it.'"></div>
+              <div class="sf-actions">
+                <button class="btn small" type="button" @click="$store.chat.downloadFile()">⤓ Download to view</button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- "Instructor help" overlay: optional note before flagging the chat (replaces the browser prompt) -->
+  <div id="helpFlagModal" class="help-flag-modal" :class="{ open: $store.chat.helpOpen }"
+       @click="if ($event.target === $el) $store.chat.closeHelpFlag()"
+       @keydown.escape.window="$store.chat.helpOpen && !$store.chat.uploadConflictOpen && $store.chat.closeHelpFlag()">
+    <div class="help-flag-box">
+      <div class="help-flag-head">🙋 Ask your instructor for help</div>
+      <div class="help-flag-sub">This flags the chat for your instructor — they'll see the conversation and what you tried. You can add a note in your own words.</div>
+      <textarea id="helpFlagNote" class="help-flag-note" rows="3"
+                placeholder="What are you stuck on? (optional)"
+                x-model="$store.chat.helpNote"
+                @keydown.ctrl.enter.prevent="$store.chat.submitHelpFlag()"
+                @keydown.meta.enter.prevent="$store.chat.submitHelpFlag()"></textarea>
+      <div class="help-flag-actions">
+        <button class="btn small quiet" type="button" @click="$store.chat.closeHelpFlag()">Cancel</button>
+        <button class="btn small" type="button" :disabled="$store.chat.helpBusy"
+                @click="$store.chat.submitHelpFlag()"
+                x-text="$store.chat.helpBusy ? 'Sending…' : 'Notify instructor'"></button>
+      </div>
+    </div>
+  </div>
+
+  {% if feature_deep_coding %}
+  <!-- One-time mode chooser: a conversation with no stored mode asks how to work — the
+       answer is remembered per conversation (switchable later from either surface).
+       Deliberately NO close-on-backdrop-click and NO Esc: the conversation needs a mode,
+       so only the two explicit choices answer it. Never shown when the Deep Coding gate
+       denies or on the mobile shell (see store.maybeRouteMode). -->
+  <div id="modeChooserModal" class="help-flag-modal" :class="{ open: $store.chat.modeAskOpen }">
+    <div class="help-flag-box">
+      <div class="help-flag-head">How would you like to work on this conversation?</div>
+      <div class="help-flag-sub">Your choice is remembered for this conversation — you can switch anytime.</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+        <button class="btn" type="button" @click="$store.chat.chooseMode('conversation')"
+                style="text-align:left;padding:12px 14px;">
+          💬 <strong>Conversation mode</strong><br>
+          <span style="font-size:13px;color:var(--lt-text-tertiary);">Chat with the tutor — ask questions, upload files to have them explained.</span>
+        </button>
+        <button class="btn" type="button" @click="$store.chat.chooseMode('deep_coding')"
+                style="text-align:left;padding:12px 14px;">
+          &lt;/&gt; <strong>Deep Coding mode</strong><br>
+          <span style="font-size:13px;color:var(--lt-text-tertiary);">Full editor with your files — write, compile &amp; run code, apply the tutor's fixes.</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Upload duplicate-name overwrite confirm (mirrors the Deep Coding IDE overlay):
+       shown at send time when attached files already exist in this conversation.
+       Checked files replace the server copy; unchecked chips are not uploaded.
+       Deliberately NO close-on-backdrop-click and NO Esc: a stray click or keystroke
+       must not discard the user's per-file choices — only the explicit buttons answer
+       it. (The help modal's Esc handler defers to uploadConflictOpen so Esc does
+       nothing at all while this is up.) -->
+  <div id="uploadConflictModal" class="help-flag-modal" :class="{ open: $store.chat.uploadConflictOpen }">
+    <div class="help-flag-box">
+      <div class="help-flag-head">⚠️ Overwrite existing file<span x-text="$store.chat.uploadConflictItems.length > 1 ? 's' : ''"></span>?</div>
+      <div class="help-flag-sub">
+        <span x-show="$store.chat.uploadConflictItems.length === 1">A file with this name already exists in this conversation. Overwriting replaces its current content — this cannot be undone.</span>
+        <span x-show="$store.chat.uploadConflictItems.length > 1">These files already exist in this conversation. Checked files will replace the existing copy — this cannot be undone; unchecked files will not be uploaded.</span>
+      </div>
+      <ul class="upload-conflict-list">
+        <template x-for="it in $store.chat.uploadConflictItems" :key="it.i">
+          <li><label><input type="checkbox" x-model="it.checked"> <span x-text="it.label"></span></label></li>
+        </template>
+      </ul>
+      <div class="help-flag-actions">
+        <button class="btn small quiet" type="button" @click="$store.chat.resolveUploadConflict(false)">Skip all (keep existing)</button>
+        <button class="btn small" type="button"
+                :disabled="!$store.chat.uploadConflictItems.some(x => x.checked)"
+                @click="$store.chat.resolveUploadConflict(true)"
+                x-text="'Overwrite selected (' + $store.chat.uploadConflictItems.filter(x => x.checked).length + ')'"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- No-courses modal (shown when all enrolled courses are deactivated) -->
+  <div id="noCoursesOverlay" x-show="$store.chat.noCourses" x-cloak
+       style="position:fixed;inset:0;background:var(--lt-bg-mask);z-index:9000;display:flex;align-items:center;justify-content:center;">
+    <div style="background:var(--lt-bg-elevated);border-radius:var(--lt-radius-xl);padding:40px 48px;text-align:center;max-width:360px;width:90%;box-shadow:var(--lt-shadow);">
+      <div style="font-size:40px;margin-bottom:16px;">📚</div>
+      <h2 style="margin:0 0 10px;font-size:20px;color:var(--lt-text);">No Available Courses</h2>
+      <p style="margin:0 0 28px;color:var(--lt-text-tertiary);font-size:14px;line-height:1.5;">Your enrolled courses are currently unavailable. Please check back later or contact your instructor.</p>
+      <a href="/logout" style="display:inline-block;padding:10px 28px;background:var(--lt-primary);color:#fff;border-radius:var(--lt-radius);font-size:14px;font-weight:600;text-decoration:none;transition:background .15s;">Log Out</a>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Rich-content safety layer (DOMPurify + sanitizer) + shared fetch wrapper + Alpine bridge.
+     Loaded before the student store so sanitizeRichHtml() / LT.api / the x-rich directive exist. -->
+<script src="{{ static_v('vendor/dompurify/purify.min.js') }}"></script>
+<script src="{{ static_v('js/core/html.js') }}"></script>
+<script src="{{ static_v('js/core/api.js') }}"></script>
+<script src="{{ static_v('js/core/files.js') }}"></script>
+<script src="{{ static_v('js/core/alpine.js') }}"></script>
+
+{% if anon %}
+<script>
+  /* Anonymous-mode config (Jinja-injected). All behavior lives in student/store.js. */
+  window.ANON = {
+    slug:          {{ anon_slug|tojson }},
+    session_id:    {{ anon_session_id|tojson }},
+    token:         {{ anon_token|tojson }},
+    assignment_id: {{ anon_assignment_id|tojson }},
+    share_url:     {{ anon_share_url|tojson }},
+    view_only:     {{ (anon_view_only or false)|tojson }},
+    mode:          {{ (anon_mode or '')|tojson }},
+    deep_ok:       {{ (feature_deep_coding or false)|tojson }}
+  };
+</script>
+{% elif initial_session %}
+<script>
+  /* Thread to auto-open on load: the one the student last worked on (resume cookie) or, on
+     first visit, the most recent session of their newest assignment. Consumed by
+     student/store.js loadProjects(). */
+  window.LAST_SESSION = {{ initial_session|tojson }};
+</script>
+{% endif %}
+
+<!-- Student app: pure render helpers (reused by x-rich) + the Alpine `chat` store. -->
+<script src="{{ static_v('js/pages/student/render.js') }}"></script>
+<script src="{{ static_v('js/pages/student/store.js') }}"></script>
+{% endblock %}

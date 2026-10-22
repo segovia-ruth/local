@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Help · LeafTutor{% endblock %}
+{% block navbar_subtitle %}Help{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-scroll">
+  <div class="page-inner">
+    <h1 class="page-title">Help</h1>
+    <p class="page-sub">Answers to common questions about using LeafTutor.</p>
+
+    <section class="panel">
+      <h2>Getting started</h2>
+      <ol class="steps">
+        <li>Open <a href="/courses">Courses</a> and pick your class.</li>
+        <li>Choose an assignment to open its tutoring workspace.</li>
+        <li>Ask the AI Tutor a question, or upload your code for feedback.</li>
+        <li>Use <a href="/calendar">Calendar</a> to keep track of due dates.</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>Frequently asked questions</h2>
+      <div class="faq">
+        <details>
+          <summary>What can the AI Tutor help me with?</summary>
+          <p class="prose">It explains concepts, helps you debug, and can review code you upload. It is designed to guide you toward the answer rather than hand over finished work, so expect hints and follow-up questions.</p>
+        </details>
+        <details>
+          <summary>How do I upload a file?</summary>
+          <p class="prose">Use the <strong>+</strong> button next to the message box, or drag a file onto the chat. Uploaded files appear above the conversation for that session.</p>
+        </details>
+        <details>
+          <summary>Can my instructor see my conversations?</summary>
+          <p class="prose">Instructors can audit tutoring sessions for the classes they teach. Avoid sharing personal information in the chat.</p>
+        </details>
+        <details>
+          <summary>How do I flag a problem for my instructor?</summary>
+          <p class="prose">Use the instructor help option in the chat. Add a short note describing where you're stuck, and your instructor will see it flagged in their dashboard.</p>
+        </details>
+        <details>
+          <summary>I can't see my course or assignment.</summary>
+          <p class="prose">Your instructor may not have enabled it yet, or the class may have been deactivated. Refresh the page first, then check with your instructor.</p>
+        </details>
+        <details>
+          <summary>I got logged out unexpectedly.</summary>
+          <p class="prose">Sessions expire after a period of inactivity. Log in again from the avatar menu or the login page and your work will still be there.</p>
+        </details>
+      </div>
+    </section>
+
+
+    <section class="panel">
+      <h2>Still need help?</h2>
+      <p class="prose">Ask your instructor first, since they can see your course setup. For technical problems with the site itself, contact support.</p>
+      <dl class="facts" style="margin-top:14px;">
+        <div>
+          <dt>Support email</dt>
+          <dd><a href="mailto:DrT@email.edu">DrT@email.edu</a></dd>
+        </div>
+        <div>
+          <dt>Response time</dt>
+          <dd>Usually within 1–2 business days</dd>
+        </div>
+      </dl>
+    </section>
+  </div>
+</div>
+{% endblock %}

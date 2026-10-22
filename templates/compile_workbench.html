@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{# The "Generate Hints" workbench: full-page assignment-preparation surface (opened in a
+   new tab from the instructor dashboard). Files → preset actions → preparation chat →
+   "Summarize context" produces the program execution module distributed to student
+   tutoring via compile_commands.context_block(). TA mode hides the profile menu the
+   same way instructor.html does (a TA has no /api/me identity). #}
+{% set anon = actor_kind == 'ta' %}
+{% block title %}{{ assignment_title }} — Generate Hints — LeafTutor{% endblock %}
+{% block body_class %}workbench-page{% endblock %}
+{% block navbar_subtitle %}Generate Hints — {{ assignment_title }}{% endblock %}
+
+{% block extra_head %}
+<script>
+  window.WB = {
+    assignmentId: {{ assignment_id | tojson }},
+    title: {{ assignment_title | tojson }},
+  };
+</script>
+<style>
+  /* Full-page workbench: files bar on top, panels left, preparation chat right. */
+  html, body.workbench-page { height: 100%; margin: 0; }
+  body.workbench-page { display: flex; flex-direction: column; overflow: hidden; }
+  .wb-wrap { flex: 1; min-height: 0; display: grid; gap: 12px; padding: 12px 16px 16px;
+             grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+             grid-template-rows: auto minmax(0, 1fr); }
+  .wb-files { grid-column: 1 / -1; background: var(--lt-bg-container); border: 1px solid var(--lt-border-secondary);
+              border-radius: 10px; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .wb-files .wb-files-label { font-size: 11px; font-weight: 600; text-transform: uppercase;
+              color: var(--lt-text-tertiary); margin-right: 4px; }
+  .wb-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 8px;
+             border: 1px solid var(--lt-border-secondary); border-radius: 999px; cursor: pointer;
+             background: var(--lt-bg-layout); user-select: none; }
+  .wb-chip.on { background: var(--lt-primary-bg); border-color: var(--lt-primary-border); }
+  .wb-chip.off { opacity: .45; text-decoration: line-through; }
+  .wb-chip .hint-badge { margin: 0; }
+  .wb-main { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  .wb-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .wb-actions .muted { font-size: 12px; }
+  .wb-panels { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+  .wb-panel { background: var(--lt-bg-container); border: 1px solid var(--lt-border-secondary);
+              border-radius: 10px; padding: 10px 12px; }
+  .wb-panel-label { font-size: 11px; font-weight: 600; text-transform: uppercase;
+                    color: var(--lt-text-tertiary); margin-bottom: 6px; display: flex; gap: 8px; align-items: baseline; }
+  .wb-panel-label .muted { text-transform: none; font-weight: normal; }
+  .wb-panel textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--lt-border-secondary);
+                       border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+  .wb-desc { border-top: 1px dashed var(--lt-border-secondary); padding: 6px 0; font-size: 12.5px; }
+  .wb-desc:first-of-type { border-top: none; }
+  .wb-desc .wb-desc-name { font-weight: 600; }
+  .wb-desc pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var(--lt-text-secondary); }
+  .wb-run pre { margin: 6px 0 0; white-space: pre-wrap; max-height: 260px; overflow: auto;
+                background: var(--lt-bg-layout); border-radius: 6px; padding: 8px; font-size: 12px; }
+  .wb-chat { min-height: 0; display: flex; flex-direction: column; background: var(--lt-bg-container);
+             border: 1px solid var(--lt-border-secondary); border-radius: 10px; }
+  .wb-chat-head { padding: 8px 12px; border-bottom: 1px solid var(--lt-border-secondary);
+                  font-size: 12px; color: var(--lt-text-tertiary); }
+  .wb-chat-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; display: flex;
+                  flex-direction: column; gap: 10px; }
+  .wb-msg { max-width: 95%; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+  .wb-msg.user { align-self: flex-end; background: var(--lt-primary-bg); }
+  .wb-msg.assistant { align-self: flex-start; background: var(--lt-bg-layout); }
+  .wb-msg .rich p { margin: 4px 0; }
+  .wb-fu { margin-top: 8px; border-top: 1px dashed var(--lt-border-secondary); padding-top: 6px; }
+  .wb-fu-q { font-size: 12.5px; font-weight: 600; margin-bottom: 4px; }
+  .wb-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wb-opt { font-size: 12px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+            border: 1px solid var(--lt-primary-border); background: var(--lt-primary-bg); color: var(--lt-primary); }
+  .wb-opt:hover { filter: brightness(.97); }
+  .wb-opt:disabled { opacity: .5; cursor: default; }
+  .wb-chat-input { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--lt-border-secondary); }
+  .wb-chat-input textarea { flex: 1; resize: none; border: 1px solid var(--lt-border-secondary);
+                            border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+  .wb-badge-presumed { background: var(--lt-warning-bg); color: var(--lt-warning-text); border-radius: 4px;
+                       font-size: 11px; padding: 1px 6px; }
+  .wb-badge-ok { background: var(--lt-success-bg); color: var(--lt-success-text, #237804); border-radius: 4px;
+                 font-size: 11px; padding: 1px 6px; }
+  .wb-badge-fail { background: var(--lt-error-bg); color: var(--lt-error-text); border-radius: 4px;
+                   font-size: 11px; padding: 1px 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wb-wrap" x-data>
+
+  <!-- File list: sources (compile + context) and other materials (context analysis). -->
+  <div class="wb-files">
+    <span class="wb-files-label">Files</span>
+    <template x-for="f in $store.wb.files" :key="f.id">
+      <span class="wb-chip" :class="f.included ? 'on' : 'off'" @click="$store.wb.toggleFile(f)"
+            :title="f.included ? 'Click to exclude from the project compile & context' : 'Click to include'">
+        <span x-text="f.canonical"></span>
+        <span class="hint-badge hint-badge-auto" x-show="f.has_main">main</span>
+        <span class="hint-badge hint-badge-cust" x-show="f.answer_key"
+              title="Answer key: compiled and analyzed here, never staged into a student run.">answer key</span>
+      </span>
+    </template>
+    <template x-for="f in $store.wb.others" :key="f.id">
+      <span class="wb-chip" :class="f.included ? 'on' : 'off'" @click="$store.wb.toggleFile(f)"
+            :title="f.included ? 'Click to exclude from context analysis' : 'Click to include'">
+        <span x-text="f.canonical"></span>
+        <span class="hint-badge" x-text="f.kind"></span>
+      </span>
+    </template>
+    <span class="muted" style="font-size:12px;" x-show="!$store.wb.files.length && !$store.wb.others.length">
+      No files uploaded to this assignment yet.</span>
+  </div>
+
+  <!-- Left: preset actions + the module's editable state -->
+  <div class="wb-main">
+    <div class="wb-actions">
+      <button class="btn small" @click="$store.wb.analyze()" :disabled="$store.wb.busy"
+              title="Describe every included file: compile hints for entry sources, summaries for the rest (docs included).">&#128269; Analyze compilation</button>
+      <button class="btn small" @click="$store.wb.genCommands()" :disabled="$store.wb.busy"
+              title="Seed the compile/run command lines from the analysis (review, then Save).">&#8801; Compilation command</button>
+      <button class="btn small" @click="$store.wb.compile()" :disabled="$store.wb.busy"
+              style="background:var(--lt-success-bg);color:var(--lt-success-text, #237804);border:1px solid var(--lt-success-border);"
+              title="Save, then run the stored commands on the included files. Unsupported language → LLM presumed output.">&#9654; Compile</button>
+      <button class="btn small" @click="$store.wb.suggestInput()" :disabled="$store.wb.busy"
+              title="Generate the program's simulated keyboard input; accept it or type your own.">&#9000; Suggest input</button>
+      <button class="btn small" @click="$store.wb.summarize()" :disabled="$store.wb.busy"
+              style="background:var(--lt-primary);color:#fff;"
+              title="Distill files + commands + input + outputs + this chat into the compact context used by student tutoring.">&#8721; Summarize context</button>
+      <button class="btn small" @click="$store.wb.autogen()" :disabled="$store.wb.busy"
+              title="One-click legacy flow: analyze, seed, converge and verify in a single pass.">&#9881; Auto-gen</button>
+      <button class="btn small" @click="$store.wb.save()" :disabled="$store.wb.busy">Save</button>
+      <span class="muted" x-text="$store.wb.status"></span>
+    </div>
+
+    <div class="wb-panels">
+      <div class="wb-panel">
+        <div class="wb-panel-label">File descriptions
+          <span class="muted">— refreshed by Analyze compilation / Auto-gen</span></div>
+        <template x-for="d in $store.wb.allDescriptions()" :key="d.name">
+          <div class="wb-desc">
+            <span class="wb-desc-name" x-text="d.name"></span>
+            <span class="hint-badge" x-text="d.kind"></span>
+            <pre x-text="d.text || '(not analyzed yet)'"></pre>
+          </div>
+        </template>
+        <div class="muted" style="font-size:12px;" x-show="!$store.wb.allDescriptions().length">Nothing analyzed yet.</div>
+      </div>
+
+      <div class="wb-panel">
+        <label class="wb-panel-label" for="wbRemarks">Remarks
+          <span class="muted">— context for tutoring, suggestions, fixes and execution</span></label>
+        <textarea id="wbRemarks" rows="2" x-model="$store.wb.remarks"
+                  placeholder="e.g. Compile with C++17; students may name files differently."></textarea>
+      </div>
+
+      <div class="wb-panel">
+        <label class="wb-panel-label" for="wbCommands">Compile &amp; run commands
+          <span class="muted">— one per line, run in order; the last one runs the program</span></label>
+        <textarea id="wbCommands" rows="3" x-model="$store.wb.commands"
+                  style="font-family:var(--lt-font-mono);" placeholder="javac Main.java Helper.java&#10;java Main"></textarea>
+      </div>
+
+      <div class="wb-panel">
+        <label class="wb-panel-label" for="wbStdin">Program input (simulated keyboard)
+          <span class="muted">— one value per line; used by every compile here AND by student chat / Deep Coding runs</span></label>
+        <textarea id="wbStdin" rows="2" x-model="$store.wb.simStdin"
+                  style="font-family:var(--lt-font-mono);" placeholder="5&#10;1 2 3"></textarea>
+      </div>
+
+      <div class="wb-panel wb-run">
+        <div class="wb-panel-label">Result
+          <span class="wb-badge-ok" x-show="$store.wb.verified">verified</span>
+          <span class="wb-badge-presumed" x-show="!$store.wb.verified && $store.wb.presumed"
+                title="LLM prediction — this language was not executed on the server.">presumed — not executed</span>
+          <span class="wb-badge-fail" x-show="$store.wb.runResult && !$store.wb.runResult.ok">last run failed</span>
+        </div>
+        <template x-if="$store.wb.runResult && !$store.wb.runResult.ok">
+          <pre x-text="$store.wb.runResult.stderr || $store.wb.runResult.stdout || '(no output)'"></pre>
+        </template>
+        <template x-if="$store.wb.verified">
+          <pre x-text="$store.wb.verified.stdout || '(no output)'"></pre>
+        </template>
+        <template x-if="!$store.wb.verified && $store.wb.presumed">
+          <pre x-text="$store.wb.presumed.text || '(no output)'"></pre>
+        </template>
+        <template x-for="wf in $store.wb.resultFiles()" :key="wf.filename">
+          <div class="wb-desc">
+            <span class="wb-desc-name">&#128196; <span x-text="wf.filename"></span></span>
+            <span class="hint-badge">written by the program</span>
+            <pre x-text="(wf.content || '(binary or empty)').slice(0, 1200)"></pre>
+          </div>
+        </template>
+        <div class="muted" style="font-size:12px;"
+             x-show="!$store.wb.verified && !$store.wb.presumed && !($store.wb.runResult && !$store.wb.runResult.ok)">
+          Not compiled yet — click Compile.</div>
+      </div>
+
+      <div class="wb-panel">
+        <label class="wb-panel-label" for="wbSummary">Context summary — the program execution module
+          <span class="muted" x-text="$store.wb.summaryAt ? ('generated ' + $store.wb.summaryAt.slice(0,16).replace('T',' ')) : '— when present, student tutoring uses THIS instead of the raw fields'"></span></label>
+        <textarea id="wbSummary" rows="7" x-model="$store.wb.summary"
+                  placeholder="Click &#8721; Summarize context to generate, then edit freely and Save."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: preparation chat (ephemeral — the saved fields + summary are the product) -->
+  <div class="wb-chat">
+    <div class="wb-chat-head">Preparation chat — suggestions &amp; follow-up questions land here; the chat itself is not stored, the summary is.</div>
+    <div class="wb-chat-msgs" id="wbChatMsgs">
+      <template x-for="(m, i) in $store.wb.chat" :key="i">
+        <div class="wb-msg" :class="m.role">
+          <div class="rich" x-rich="{ content: m.text }"></div>
+          <template x-for="(fu, j) in (m.followups || [])" :key="j">
+            <div class="wb-fu">
+              <div class="wb-fu-q" x-text="fu.question"></div>
+              <div class="wb-opts">
+                <template x-for="opt in fu.options" :key="opt">
+                  <button class="wb-opt" :disabled="fu.answered"
+                          @click="$store.wb.answerFollowup(m, fu, opt)" x-text="opt"></button>
+                </template>
+              </div>
+            </div>
+          </template>
+          <template x-if="(m.suggestions || []).length">
+            <div class="wb-fu">
+              <div class="wb-opts">
+                <template x-for="s in m.suggestions" :key="s.label">
+                  <button class="wb-opt" @click="$store.wb.runSuggestion(s)" x-text="s.label"></button>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+      <div class="muted" style="font-size:12px;" x-show="!$store.wb.chat.length">
+        Ask anything about preparing this assignment — or start with the buttons on the left.</div>
+    </div>
+    <div class="wb-chat-input">
+      <textarea rows="2" x-model="$store.wb.chatInput" placeholder="Message the preparation assistant…"
+                @keydown.enter.prevent="if (!$event.shiftKey) $store.wb.sendChat()"></textarea>
+      <button class="btn small" @click="$store.wb.sendChat()"
+              :disabled="$store.wb.chatBusy || !$store.wb.chatInput.trim()">Send</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ static_v('vendor/dompurify/purify.min.js') }}"></script>
+<script src="{{ static_v('js/core/html.js') }}"></script>
+<script src="{{ static_v('js/core/api.js') }}"></script>
+<script src="{{ static_v('js/core/alpine.js') }}"></script>
+<script src="{{ static_v('js/pages/instructor/workbench.js') }}"></script>
+{% endblock %}
