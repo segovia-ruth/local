@@ -6,7 +6,6 @@ SQLite file (`leaftutor.db`).
 
 ## Setup
     pip install -r requirements.txt
-    # put these files next to your templates/ and static/ folders (or pass --frontend-dir)
     python leaftutor_local.py            # first run prints a demo instructor login
     python leaftutor_local.py --create-user alice 'pw-12345678' --role instructor --first Alice --last Smith
 
