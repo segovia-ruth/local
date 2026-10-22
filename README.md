@@ -23,7 +23,6 @@ saved and the UI shows "Saved for retry — generation failed"; file summaries f
 | `lt_files.py` | assignment files, tags, summaries, compile & run, Generate-Hints workbench |
 | `lt_chat.py` | tutoring threads + files, anonymous links, audit |
 | `lt_exec.py` | language detection, risk screen, static analysis, local code runner |
-| `lt_llm.py` | optional Anthropic adapter |
 | `tests/smoke_test.py` | 71-check end-to-end test (`python tests/smoke_test.py <frontend_dir>`) |
 
 ## Security notes
