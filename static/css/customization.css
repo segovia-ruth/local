@@ -172,18 +172,29 @@
     background: var(--lt-fill-secondary);
 }
 
+
 /* ---------- Text size ---------- */
-html[data-font-size="small"] body {
-    zoom: .9;
+/*
+   Increase actual text size instead of zooming the entire application.
+   This lets text wrap and avoids scaling the fixed-height layout.
+   These values update the shared font-size token used by LeafTutor.
+*/
+html[data-font-size="small"] {
+    --lt-fz: 13px;
 }
 
-html[data-font-size="large"] body {
-    zoom: 1.15;
+html[data-font-size="medium"] {
+    --lt-fz: 15px;
 }
 
-html[data-font-size="xlarge"] body {
-    zoom: 1.3;
+html[data-font-size="large"] {
+    --lt-fz: 18px;
 }
+
+html[data-font-size="xlarge"] {
+    --lt-fz: 21px;
+}
+
 
 /* ---------- Dark theme (token swap) ---------- */
 html[data-theme="dark"] {

@@ -1,0 +1,56 @@
+
+<!--
+  Shared course navigation for LeafTutor.
+  This file will be included in both course_detail.html
+  and instructor.html so the sidebar stays consistent.
+-->
+
+<aside class="course-sidebar" aria-label="Course navigation">
+
+  <!-- Display the name and term of the current course. -->
+  <div class="course-sidebar-header">
+    <strong>{{ course.name }}</strong>
+    <span>{{ course.term or "Course workspace" }}</span>
+  </div>
+
+  <nav class="course-sidebar-nav" aria-label="Course sections">
+
+    <!-- Course overview. -->
+    <a class="course-nav-link"
+       href="/courses/{{ course.id|urlencode }}">
+      Overview
+    </a>
+
+    <!-- Assignment management. -->
+    <a class="course-nav-link"
+       href="/instructor?class={{ course.id|urlencode }}&view=assignments">
+      Assignments
+    </a>
+
+    {% if not is_student %}
+
+    <!-- Instructor-only roster management. -->
+    <a class="course-nav-link"
+       href="/instructor?class={{ course.id|urlencode }}&view=roster">
+      Students &amp; Roster
+    </a>
+
+    <!-- Instructor-only teaching assistant management. -->
+    <a class="course-nav-link"
+       href="/instructor?class={{ course.id|urlencode }}&view=tas">
+      Teaching Assistants
+    </a>
+
+    {% else %}
+
+    <!-- Student course staff information. -->
+    <a class="course-nav-link"
+       href="/courses/{{ course.id|urlencode }}#course-info">
+      Instructor &amp; TAs
+    </a>
+
+    {% endif %}
+
+  </nav>
+
+</aside>

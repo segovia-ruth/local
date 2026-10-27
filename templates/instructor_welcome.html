@@ -1,0 +1,113 @@
+
+{% extends "base.html" %}
+
+{% block title %}Instructor Home · LeafTutor{% endblock %}
+{% block navbar_subtitle %}Instructor Home{% endblock %}
+
+{% block extra_head %}
+<!-- Reuse the same page styling as the existing student Welcome page. -->
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+{% endblock %}
+
+{% block content %}
+<!--
+  Instructor Home:
+  Provides a simple introduction to LeafTutor, a teaching overview,
+  and the steps instructors follow to set up their courses.
+-->
+<div class="page-scroll">
+  <div class="page-inner">
+
+    <!-- Personalized welcome using the instructor's first name. -->
+    <h1 class="page-title">Welcome, {{ first }} 🍃</h1>
+    <p class="page-sub">
+      Your teaching workspace. Create courses, manage assignments,
+      and support your students as they learn programming.
+    </p>
+
+    <!--
+      Teaching Overview:
+      These totals will be calculated from the instructor's own
+      courses and assignments in the database.
+    -->
+    <section class="panel">
+      <h2>Teaching Overview</h2>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+
+        <div class="item" style="flex:1;min-width:130px;">
+          <strong style="font-size:24px;">{{ course_count }}</strong>
+          <p class="muted">Courses</p>
+        </div>
+
+        <div class="item" style="flex:1;min-width:130px;">
+          <strong style="font-size:24px;">{{ student_count }}</strong>
+          <p class="muted">Enrolled Students</p>
+        </div>
+
+        <div class="item" style="flex:1;min-width:130px;">
+          <strong style="font-size:24px;">{{ assignment_count }}</strong>
+          <p class="muted">Assignments</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!--
+      My Courses:
+      Display a short list of the instructor's courses.
+      Selecting one opens its existing course page.
+    -->
+    <section class="panel">
+      <h2>My Courses</h2>
+
+      {% if classes %}
+        {% for c in classes %}
+          <a class="item"
+             href="/courses/{{ c.id|urlencode }}"
+             style="display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;">
+
+            <div style="flex:1;min-width:0;">
+              <strong>{{ c.name }}</strong>
+              <span class="muted">
+                {{ c.term or "No term specified" }}
+              </span>
+            </div>
+
+            <span class="muted" aria-hidden="true">→</span>
+          </a>
+        {% endfor %}
+      {% else %}
+        <p class="muted">
+          You haven't created a course yet.
+        </p>
+      {% endif %}
+
+      <p>
+        <a class="btn" href="/courses">Manage Courses →</a>
+      </p>
+    </section>
+
+    <!--
+      How It Works:
+      A short instructor onboarding guide.
+      Detailed management tools remain inside each course.
+    -->
+    <section class="panel">
+      <h2>How it works</h2>
+
+      <ol>
+        <li>Create a class and enter its course information.</li>
+        <li>Enroll students individually or upload a class roster.</li>
+        <li>Create assignments and add instructions, materials, and due dates.</li>
+        <li>Publish assignments when they're ready for students.</li>
+        <li>Review student learning and identify where additional help may be needed.</li>
+      </ol>
+
+      <a class="btn" href="/courses">Get started →</a>
+    </section>
+
+  </div>
+</div>
+{% endblock %}
+

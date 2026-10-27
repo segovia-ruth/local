@@ -122,6 +122,44 @@
     </nav>
   </div>
 
+<!--
+  Course assignment creation:
+  The original Add Assignment field is inside the sidebar, which is hidden
+  in course mode. This section gives instructors a visible way to create
+  assignments without changing the existing backend or sidebar behavior.
+-->
+<div class="course-create-assignment"
+     x-show="!$store.inst.isTA && $store.inst.currentClassId"
+     x-cloak
+     style="padding:16px 24px;border-bottom:1px solid var(--lt-border-secondary);">
+
+  <div style="max-width:950px;margin:auto;">
+
+    <h3 style="margin:0 0 8px;">Create Assignment</h3>
+
+    <!-- Store the new assignment title in the existing Alpine state. -->
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+
+      <input
+        type="text"
+        placeholder="Assignment title (e.g. Python Variables Practice)"
+        style="flex:1;min-width:220px;padding:10px;"
+        x-model="$store.inst.newCourseAssignmentTitle"
+        @keydown.enter.prevent="$store.inst.createCourseAssignment()"
+      >
+
+      <!-- Create a draft using the existing assignment API. -->
+      <button
+        type="button"
+        class="btn"
+        @click="$store.inst.createCourseAssignment()">
+        + Add Assignment
+      </button>
+
+    </div>
+  </div>
+</div>
+
   <!-- Main layout: sidebar (classes) & resizable roster and assignments panels -->
   <div class="main-layout" x-init="$store.inst.init()">
     <!-- Sidebar = Classes -->
@@ -252,9 +290,36 @@
             </div>
 
             <div class="card" id="asnFilesCard" x-show="$store.inst.currentAsnId" x-cloak style="display:block;">
-              <div class="section-header">
-                <h3 id="asnFilesTitle" style="margin:0" x-text="'Files — ' + ($store.inst.currentAsn ? $store.inst.currentAsn.title : '')"></h3>
+             
+              <!--
+  Assignment publication controls:
+  Show instructors whether the selected assignment is a draft or published.
+  Provide a visible Publish/Unpublish button so instructors do not need
+  to locate the activation checkbox hidden in the assignment sidebar.
+  The button calls the existing Alpine store method to update the database.
+-->
+              <div class="section-header"
+                style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+              
+                <div>
+                  <h3 style="margin:0 0 6px;" x-text="$store.inst.currentAsn ? $store.inst.currentAsn.title : 'Assignment'">
+                  </h3>
+              
+                  <span style="font-size:13px;font-weight:600;"
+                    :style="$store.inst.currentAsn?.active ? 'color:#247347;' : 'color:#9a6700;'"
+                    x-text="$store.inst.currentAsn?.active ? 'Published — visible to students' : 'Draft — hidden from students'">
+                  </span>
+                </div>
+              
+                <button type="button" class="btn" x-show="$store.inst.canManageAssignments" @click="$store.inst.toggleSidebarAsnActive(
+                    $store.inst.currentClassId,
+                    $store.inst.currentAsn,
+                    !$store.inst.currentAsn.active
+                  )" x-text="$store.inst.currentAsn?.active ? 'Unpublish Assignment' : 'Publish Assignment'">
+                </button>
+              
               </div>
+
               <div style="margin:6px 0 2px;">
                 <label for="asnRemarks" style="display:block;font-size:12px;color:#6b7280;margin-bottom:3px;">Remarks — AI tutor context for this assignment</label>
                 <textarea id="asnRemarks" rows="2" x-model="$store.inst.remarks" :readonly="!$store.inst.canManageAssignments" style="width:100%;max-width:460px;box-sizing:border-box;resize:vertical;font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;" placeholder="e.g. This assignment tests recursion. Students should not use loops."></textarea>

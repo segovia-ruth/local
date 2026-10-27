@@ -698,3 +698,135 @@ html.high-contrast .cal-cell[data-level="4"] {
 html.high-contrast .cal-chip {
   border-left: 3px solid #ffd400 !important;
 }
+
+
+
+/* ==========================================================
+   COURSE WORKSPACE — INSTRUCTOR & STUDENT
+   Adds a second navigation sidebar when a course is opened.
+   The existing global LeafTutor sidebar stays separate.
+   ========================================================== */
+
+/* Place the course sidebar and course content side by side. */
+.course-workspace {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Course-specific navigation sidebar. */
+.course-sidebar {
+    width: 230px;
+    flex: 0 0 230px;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Soft sage background distinguishes course navigation from the workspace.
+    change back to 
+    background: var(--lt-bg-container);
+    border-right: 1px solid var(--lt-border-secondary); if dont like */
+    background: #E1EDE4;
+    border-right: 1px solid #C3D8CA;
+}
+
+/* Course name and term at the top of the sidebar. */
+.course-sidebar-header {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 20px 16px;
+    border-bottom: 1px solid var(--lt-border-secondary);
+}
+
+.course-sidebar-header strong {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--lt-text);
+    overflow-wrap: anywhere;
+}
+
+.course-sidebar-header span {
+    font-size: 12px;
+    color: var(--lt-text-tertiary);
+}
+
+/* Vertical list of course navigation links. */
+.course-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 8px;
+}
+
+/* Individual course navigation links. */
+.course-nav-link {
+    display: block;
+    padding: 11px 12px;
+    border-radius: var(--lt-radius);
+    color: var(--lt-text-secondary);
+    text-decoration: none;
+    font-size: var(--lt-fz);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.course-nav-link:hover,
+.course-nav-link:focus-visible {
+    background: var(--lt-fill-tertiary);
+    color: var(--lt-text);
+}
+
+/* OLD Highlight the current course section. 
+.course-nav-link.active {
+    background: var(--lt-primary-bg);
+    color: var(--lt-primary);
+    font-weight: 600;
+}
+*/
+
+/* Highlight the currently selected course section. */
+.course-nav-link.active,
+.course-nav-link.active:hover {
+    background: #174C3C;
+    color: #FFFFFF;
+    font-weight: 600;
+}
+
+/* Slightly darker sage when hovering over other course links. */
+.course-nav-link:hover,
+.course-nav-link:focus-visible {
+    background: #C3D8CA;
+    color: #174C3C;
+}
+
+
+/* Let the existing course page fill the remaining space. */
+.course-workspace-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+}
+
+/* On narrow screens, make the course navigation compact. */
+@media (max-width: 700px) {
+    .course-sidebar {
+        width: 150px;
+        flex-basis: 150px;
+    }
+
+    .course-sidebar-header {
+        padding: 14px 10px;
+    }
+
+    .course-sidebar-nav {
+        padding: 8px 5px;
+    }
+
+    .course-nav-link {
+        padding: 10px 8px;
+    }
+}

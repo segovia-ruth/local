@@ -41,6 +41,9 @@ document.addEventListener('alpine:init', () => {
     sidebarExpandedClass: null,
     sidebarAsn: {},                     // classId -> { loading, items: [] }
     classCreateOpen: false, newClass: { name: '', term: '' },
+    
+    // Holds the title entered in the visible course assignment creation form.
+    newCourseAssignmentTitle: '',
 
     // ── assignments / files ────────────────────────────────────────────────────
     assignments: [], currentAsnId: null, activeTitleSet: [],
@@ -273,6 +276,49 @@ document.addEventListener('alpine:init', () => {
           showNotification((makeActive ? 'Activated' : 'Deactivated') + ': ' + a.title);
         } else { a.active = !makeActive; showNotification(res.error || 'Could not update.', true); }
       } catch (e) { a.active = !makeActive; showNotification('Network error.', true); }
+    },
+    /*
+ * Create an assignment from the course page.
+ *
+ * The original creation form lives in the hidden sidebar. This method
+ * reuses the existing assignment API so both creation forms save to
+ * the same database and follow the same draft-first workflow.
+ */
+    async createCourseAssignment() {
+      const classId = this.currentClassId;
+      const title = (this.newCourseAssignmentTitle || '').trim();
+
+      // Prevent submitting an empty title or creating without a selected course.
+      if (!classId || !title) {
+        showNotification('Enter an assignment title first.', true);
+        return;
+      }
+
+      try {
+        // New assignments are drafts until the instructor publishes them.
+        const response = await fetch('/api/instructor/assignments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ class_id: classId, title })
+        });
+
+        const data = await response.json();
+
+        // Display a useful error instead of pretending creation succeeded.
+        if (!response.ok || data.error) {
+          throw new Error(data.error || 'Could not create assignment.');
+        }
+
+        this.newCourseAssignmentTitle = '';
+
+        // Refresh both assignment lists to show the newly created draft.
+        await this.loadAssignments(classId);
+        await this.loadSidebarAsn(classId);
+
+        showNotification('Assignment created as a draft.');
+      } catch (error) {
+        showNotification(error.message || 'Could not create assignment.', true);
+      }
     },
     async createSidebarAsn(classId) {
       const slot = this.sidebarAsn[classId]; if (!slot) return;

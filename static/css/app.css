@@ -4687,3 +4687,38 @@ body.resizing * {
   color: #22863a;
   background: #f0fff4;
 }
+
+
+
+/* ==========================================================
+   LEAFTUTOR MAIN SIDEBAR — FOREST GREEN
+   Only affects the global left navigation sidebar.
+   The top navbar remains unchanged.
+   ========================================================== */
+
+html[data-theme="light"] .app-rail {
+    background: #174C3C;
+    color: #ffffff;
+    border-right: 1px solid #123D30;
+}
+
+/* Navigation links and sidebar collapse button */
+html[data-theme="light"] .app-rail .rail-link,
+html[data-theme="light"] .app-rail .rail-toggle {
+    color: #E2F0E7;
+}
+
+/* Hover and keyboard focus */
+html[data-theme="light"] .app-rail .rail-link:hover,
+html[data-theme="light"] .app-rail .rail-link:focus-visible,
+html[data-theme="light"] .app-rail .rail-toggle:hover {
+    background: #28634F;
+    color: #ffffff;
+}
+
+/* Currently selected main navigation item */
+html[data-theme="light"] .app-rail .rail-link.active,
+html[data-theme="light"] .app-rail .rail-link.active:hover {
+    background: #E1EDE4;
+    color: #174C3C;
+}

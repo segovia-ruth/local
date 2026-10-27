@@ -89,3 +89,44 @@
   --rail-w: 220px;
   --rail-w-collapsed: 56px;
 }
+
+
+/* ==========================================================
+   LeafTutor default palette
+   Matches the earthy green and off-white login page.
+   These variables are shared by the logged-in pages.
+   ========================================================== */
+
+:root {
+  /* Page, cards, navigation, and elevated surfaces */
+  --lt-bg-layout: #f7f9f7;
+  --lt-bg-container: #ffffff;
+  --lt-bg-elevated: #ffffff;
+
+  /* Main text and supporting text */
+  --lt-text: #243127;
+  --lt-text-secondary: #647067;
+  --lt-text-tertiary: #718076;
+  --lt-text-quaternary: #7b897d;
+  --lt-text-on-primary: #ffffff;
+
+  /* Primary buttons, links, and selected navigation */
+  --lt-primary: #526b57;
+  --lt-primary-hover: #435948;
+  --lt-primary-active: #354a39;
+
+  /* Soft green highlights */
+  --lt-primary-bg: #eef4ee;
+  --lt-primary-bg-hover: #dce6dc;
+  --lt-primary-border: #b9cdbb;
+
+  /* Borders */
+  --lt-border: #d7ded7;
+  --lt-border-secondary: #e3e8e3;
+
+  /* Subtle hover and selected backgrounds */
+  --lt-fill: rgba(36, 49, 39, 0.15);
+  --lt-fill-secondary: rgba(36, 49, 39, 0.06);
+  --lt-fill-tertiary: rgba(36, 49, 39, 0.04);
+  --lt-fill-quaternary: rgba(36, 49, 39, 0.02);
+}

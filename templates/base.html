@@ -123,9 +123,29 @@
   <!-- App shell: collapsible left rail + page content -->
   <div class="app-shell{{ ' app-shell-anon' if anon }}"
        x-data="{
-         railOpen: (() => { try { const s = localStorage.getItem('lt-rail');
-                             return s ? s === 'open' : window.innerWidth > 700; }
-                           catch (e) { return true; } })(),
+         
+        railOpen: (() => {
+  // Automatically collapse the main sidebar on course pages.
+  // This includes the course overview and instructor course tools.
+        const onCoursePage =
+          /^\/courses\/[^/]+\/?$/.test(window.location.pathname) ||
+          (
+          window.location.pathname === '/instructor' &&
+          new URLSearchParams(window.location.search).has('class')
+          );
+
+  // Start with the compact main navigation when viewing a course.
+          if (onCoursePage) return false;
+
+  // On other pages, restore the user's saved sidebar preference.
+          try {
+            const saved = localStorage.getItem('lt-rail');
+            return saved ? saved === 'open' : window.innerWidth > 700;
+          } catch (e) {
+            return window.innerWidth > 700;
+      }
+    })(),
+
          toggleRail() { this.railOpen = !this.railOpen;
                         try { localStorage.setItem('lt-rail', this.railOpen ? 'open' : 'closed'); }
                         catch (e) {} }
@@ -141,6 +161,26 @@
       </button>
 
       <nav id="railNav">
+
+<!--
+  Instructor Home navigation:
+  Show a dedicated Home link only to instructors.
+  Students retain their existing Home link to /welcome.
+-->
+{% if current_role == 'instructor' %}
+<a class="rail-link {{ 'active' if request.path.startswith('/instructor/home') }}" href="/instructor/home"
+  aria-label="Home" title="Home">
+  <span class="rail-icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round">
+      <path d="M3 11l9-8 9 8" />
+      <path d="M5 10v10h14V10" />
+    </svg>
+  </span>
+  <span class="rail-text">Home</span>
+</a>
+{% endif %}
+
         {% if current_role == 'student' %}
         <a class="rail-link {{ 'active' if request.path.startswith('/welcome') or request.path.startswith('/student') }}"
            href="/welcome" aria-label="Home" title="Home">

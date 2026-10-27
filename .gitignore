@@ -1,0 +1,9 @@
+# Local database
+leaftutor.db
+
+# Flask secret key
+.secret_key
+
+# Python cache
+__pycache__/
+*.pyc

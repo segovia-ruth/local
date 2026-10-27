@@ -37,7 +37,12 @@ def error_page(heading, message, detail="", status=400):
 
 
 def home_for(user):
-    return "/courses" if user["role"] == "instructor" else "/welcome"
+    # Send instructors to their teaching overview after login.
+    # Students continue using their existing Welcome page.
+    if user["role"] == "instructor":
+        return "/instructor/home"
+
+    return "/welcome"
 
 
 def class_dict(c):
@@ -242,6 +247,62 @@ def student_page():
                            feature_deep_coding=False, initial_session=None)
 
 
+# ── Instructor Home ──────────────────────────────────────────────────────────
+# This page is separate from the student Welcome page.
+# It shows only the courses owned by the logged-in instructor and
+# calculates the teaching overview directly from the database.
+
+@bp.get("/instructor/home")
+def instructor_home_page():
+    # Require login before displaying instructor information.
+    u = current_user()
+    if not u:
+        return redirect("/login")
+
+    # Prevent student accounts from accessing the instructor dashboard.
+    if u["role"] != "instructor":
+        return redirect("/welcome")
+
+    # Retrieve only courses belonging to this instructor.
+    classes = visible_classes()
+    course_ids = [c["id"] for c in classes]
+
+    # Count unique enrolled students across the instructor's courses.
+    # A student enrolled in two courses is counted only once.
+    student_count = 0
+    assignment_count = 0
+
+    if course_ids:
+        placeholders = ",".join("?" for _ in course_ids)
+
+        # Count active enrollments belonging to these courses.
+        student_count = q1(
+            f"SELECT COUNT(DISTINCT user_id) AS n FROM enrollments "
+            f"WHERE class_id IN ({placeholders}) AND active=1",
+            tuple(course_ids)
+        )["n"]
+
+        # Count all assignments, including drafts, for the instructor.
+        assignment_count = q1(
+            f"SELECT COUNT(*) AS n FROM assignments "
+            f"WHERE class_id IN ({placeholders})",
+            tuple(course_ids)
+        )["n"]
+
+    # Render the new page using live database information.
+    return render_template(
+        "instructor_welcome.html",
+        anon=False,
+        first=u["first_name"] or u["username"],
+        classes=[class_dict(c) for c in classes],
+        course_count=len(classes),
+        student_count=student_count,
+        assignment_count=assignment_count
+    )
+
+
+
+#Student welcome page, shows all classes the student is enrolled in and how it works
 @bp.get("/welcome")
 def welcome_page():
     u = current_user()
@@ -288,9 +349,25 @@ def calendar_page():
     if not u:
         return redirect("/login")
     events = []
+        # Students should only see published assignments on their calendars.
+    # Instructors can see both drafts and published assignments so they
+    # can plan upcoming coursework before making it available to students.
+    is_student = u["role"] == "student"
+
     for c in visible_classes():
         label = c["code"] or c["name"]
-        for a in q("SELECT * FROM assignments WHERE class_id=? AND due_date IS NOT NULL", (c["id"],)):
+
+        # Build the assignment query based on the logged-in user's role.
+        # Every assignment must have a due date to appear on the calendar.
+        # The active=1 condition prevents draft assignments from leaking
+        # into student calendars before the instructor publishes them.
+        sql = "SELECT * FROM assignments WHERE class_id=? AND due_date IS NOT NULL"
+
+        if is_student:
+            sql += " AND active=1"
+
+        # Fetch the appropriate assignments for this course.
+        for a in q(sql, (c["id"],)):
             tm = None
             if a["due_time"]:
                 try:

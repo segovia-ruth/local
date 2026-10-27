@@ -7,8 +7,29 @@
 <link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
 {% endblock %}
 
+
 {% block content %}
-<div class="page-scroll">
+
+<!--
+  Course workspace:
+  The course-specific sidebar appears beside the existing course page.
+  The global LeafTutor sidebar remains available on the far left.
+-->
+<div class="course-workspace">
+
+  <!-- Navigation for the course currently being viewed. -->
+  
+<!--
+  Shared course navigation.
+  The same sidebar will also be used on instructor course pages.
+  This keeps navigation consistent across the course workspace.
+-->
+{% include "course_sidebar.html" %}
+
+
+  <!-- Existing course content stays inside its own scrollable area. -->
+  <div class="page-scroll course-workspace-content">
+
   <div class="page-inner">
     <nav class="crumbs" aria-label="Breadcrumb">
       <a href="/courses">Courses</a> / {{ course.name }}
@@ -188,6 +209,8 @@
     })();
     </script>
     {% endif %}
-  </div>
+    </div>
+
+  <!-- Close the new course workspace container. -->
 </div>
 {% endblock %}
