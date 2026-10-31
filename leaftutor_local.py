@@ -57,7 +57,8 @@ def create_app(frontend_dir=None):
 
     def nice_date(value):
         try:
-            return datetime.strptime(str(value)[:10], "%Y-%m-%d").strftime("%a, %b %-d, %Y")
+            d = datetime.strptime(str(value)[:10], "%Y-%m-%d")
+            return f"{d:%a}, {d:%b} {d.day}, {d.year}"      # %-d is not portable (fails on Windows)
         except (TypeError, ValueError):
             return value or ""
 
@@ -89,6 +90,12 @@ def create_app(frontend_dir=None):
     def inject_role():
         u = current_user()
         return {"current_role": u["role"] if u else None}
+      
+    @app.get("/api/llm_status")
+    def llm_status():
+        import lt_llm
+        ok, why = lt_llm.status()
+        return jsonify(ok=ok, provider=lt_llm.provider(), model=lt_llm.label(), detail=why)
 
     @app.errorhandler(404)
     def not_found(_e):
@@ -103,7 +110,9 @@ def create_app(frontend_dir=None):
     from lt_chat import bp as chat_bp
     from lt_core import bp as core_bp
     from lt_files import bp as files_bp
-    for bp in (core_bp, files_bp, chat_bp):
+    from lt_live import bp as live_bp
+    from lt_student import bp as student_bp
+    for bp in (core_bp, files_bp, chat_bp, student_bp, live_bp):
         app.register_blueprint(bp)
     return app
 
@@ -148,6 +157,9 @@ def main():
     if a.create_user:
         return cli_create_user(app, *a.create_user, a.role, a.first, a.last)
     first_run_seed(app)
+    import lt_llm
+    ok, why = lt_llm.status()
+    print(f"  AI tutor: {'ON' if ok else 'OFF'} - {why}")
     if urlsplit(f"//{a.host}").hostname not in ("127.0.0.1", "localhost", "::1"):
         print("  WARNING: binding to a non-local address. This server runs student code on your machine.")
     print(f"LeafTutor (local backend): http://{a.host}:{a.port}   db: {lt_db.DB_PATH}")
