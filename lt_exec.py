@@ -165,10 +165,16 @@ def execute(main_name, language, files, stdin="", confirmed=False):
                         "phase": "compile", "output": _clip(se or so)}
             cmd = [os.path.join(tmp, "prog")]
         else:  # java
-            rc, so, se, _ = _sh([shutil.which("javac") or "javac", *[os.path.basename(n) for n in files if ext_of(n) == "java"]], tmp)
+            # Compile only the file being run; javac pulls in the other classes it uses from the project folder, so a
+            # broken scratch file in the same project can't block an unrelated one. If that fails (helper classes in
+            # differently-named files), retry with every file and report the first attempt's errors if that fails too.
+            base = [shutil.which("javac") or "javac", "-encoding", "UTF-8", "-sourcepath", ".", "-d", "."]
+            rc, so, se, _ = _sh([*base, main], tmp)
             if rc != 0:
-                return {"ok": False, "exit_code": rc, "stdout": _clip(so), "stderr": _clip(se),
-                        "phase": "compile", "output": _clip(se or so)}
+                rc2, _, _, _ = _sh([*base, *[os.path.basename(n) for n in files if ext_of(n) == "java"]], tmp)
+                if rc2 != 0:
+                    return {"ok": False, "exit_code": rc, "stdout": _clip(so), "stderr": _clip(se),
+                            "phase": "compile", "output": _clip(se or so)}
             cmd = [shutil.which("java") or "java", "-cp", tmp, stem]
         rc, so, se, timed_out = _sh(cmd, tmp, stdin or "")
         written = []
@@ -185,5 +191,73 @@ def execute(main_name, language, files, stdin="", confirmed=False):
                 "phase": "timeout" if timed_out else phase, "written_files": written,
                 "output": _clip(so or se), "output_evaluations": [], "security_rejected": False,
                 "risk": risk, "reasons": reasons}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ── freeCodeCamp-style checks ────────────────────────────────────────────────
+
+import re as _re
+
+_UT_LINE = _re.compile(r"^(\w+) \(([\w.]+)\)(?:\n.*?)? \.\.\. (ok|FAIL|ERROR|skipped.*)$", _re.M)
+
+
+def check(student_files, test_name, test_data, language, stdin=""):
+    """Run one instructor test file against the student's files (all copied into one temp dir).
+
+    Python  -> `python -m unittest -v` (per-test pass/fail). A test file with plain asserts also works
+               (it counts as one test).
+    JS      -> node runs the test file (use the built-in `assert` module; exit 0 = pass).
+    Returns {ok, passed, failed, total, tests:[{name,status,message}], output, timed_out}
+    """
+    if language not in ("python", "javascript"):
+        return {"ok": False, "error": f"Checks support Python and JavaScript for now (this file is {language or 'unknown'})."}
+    screen_text = test_data.decode("utf-8", "replace") + "\n".join(d.decode("utf-8", "replace") for d in student_files.values())
+    risk, reasons = screen(screen_text)
+    if risk == "high":
+        return {"ok": False, "error": "Blocked by the local keyword screen: " + "; ".join(reasons)}
+    tmp = tempfile.mkdtemp(prefix="lt_chk_")
+    try:
+        for n, data in student_files.items():
+            with open(os.path.join(tmp, os.path.basename(n)), "wb") as fh:
+                fh.write(data)
+        tname = os.path.basename(test_name)
+        with open(os.path.join(tmp, tname), "wb") as fh:
+            fh.write(test_data)
+        stem = tname.rsplit(".", 1)[0]
+        if language == "python":
+            cmd = [shutil.which("python3") or "python3", "-m", "unittest", "-v", stem]
+        else:
+            cmd = [shutil.which("node") or "node", tname]
+        rc, so, se, timed_out = _sh(cmd, tmp, stdin or "")
+        out = _clip((so or "") + (se or ""))
+        tests = []
+        if language == "python":
+            for m in _UT_LINE.finditer(se or ""):
+                st = "passed" if m.group(3) == "ok" else ("skipped" if m.group(3).startswith("skipped") else "failed")
+                tests.append({"name": m.group(1), "status": st, "message": ""})
+            # attach assertion messages to failed tests: blocks start with "FAIL: name (...)" / "ERROR: ..."
+            for blk in _re.split(r"\n={20,}\n", se or "")[1:]:
+                blk = _re.split(r"\n-{20,}\nRan ", blk)[0]          # drop the "Ran N tests / FAILED" footer
+                head = blk.split("\n", 1)[0]
+                mm = _re.match(r"(?:FAIL|ERROR): (\w+)", head)
+                if mm:
+                    last = [l for l in blk.strip().splitlines() if l.strip()][-1] if blk.strip() else ""
+                    for t in tests:
+                        if t["name"] == mm.group(1):
+                            t["message"] = last[:300]
+            if not tests and "unittest" in (se or "") and rc != 0 and "Ran 0 tests" not in (se or ""):
+                tests = [{"name": "import / syntax", "status": "failed",
+                          "message": [l for l in (se or "").strip().splitlines() if l.strip()][-1][:300]}]
+        if timed_out:
+            tests = [{"name": "time limit", "status": "failed",
+                      "message": f"Timed out after {RUN_TIMEOUT}s - check for an infinite loop."}]
+        elif not tests:                                 # plain script: one test, exit code decides
+            tests = [{"name": tname, "status": "passed" if rc == 0 else "failed",
+                      "message": "" if rc == 0 else (se.strip().splitlines() or ["Failed"])[-1][:300]}]
+        passed = sum(t["status"] == "passed" for t in tests)
+        failed = sum(t["status"] == "failed" for t in tests)
+        return {"ok": failed == 0 and passed > 0, "passed": passed, "failed": failed, "total": passed + failed,
+                "tests": tests, "output": out, "timed_out": timed_out}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

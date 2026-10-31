@@ -11,7 +11,7 @@ from flask import (Blueprint, g, jsonify, redirect, render_template, render_temp
                    request, session)
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from lt_common import (asn_dict, b, can_asn, can_class, clean_due, current_user, err, full_name,
+from lt_common import (asn_dict, b, can_asn, can_class, clean_due, current_user, deep_enabled, err, full_name,
                        inst_api, login_required_api, principal, ta_principal)
 from lt_db import future, new_id, now_dt, q, q1, run, ts
 
@@ -248,6 +248,9 @@ def course_page(course_id):
     if not c:
         return error_page("Not found", "That course doesn't exist or you don't have access.", status=404)
     d = class_dict(c)
+    run("INSERT INTO course_visits(user_id, class_id, last_opened) VALUES(?,?,?) "
+        "ON CONFLICT(user_id, class_id) DO UPDATE SET last_opened=excluded.last_opened",
+        (u["id"], c["id"], ts()))
     if u["role"] == "student":
         # PURPOSE: Show students only assignments activated by the instructor.
         # REASON: The assignment query and dashboard calculations below
@@ -454,14 +457,21 @@ def student_page():
         # Supply the course information needed by the navigation.
         course = class_dict(selected)
 
-    # Keep the existing AI Tutor features and behavior unchanged.
+    # /student?session=<id> reopens that exact chat (bookmark / copied link / QR).
+    init = None
+    sid = request.args.get("session", "")
+    if sid and u["role"] == "student":
+        s = q1("SELECT id, assignment_id, mode FROM sessions WHERE id=? AND kind='student' AND owner_user_id=?", (sid, u["id"]))
+        if s:
+            init = {"assignment_id": s["assignment_id"], "session_id": s["id"], "mode": s["mode"] or None}
+
     # Course navigation will be displayed only when course is available.
     return render_template(
         "student.html",
         anon=False,
         feature_add_class=False,
-        feature_deep_coding=False,
-        initial_session=None,
+        feature_deep_coding=deep_enabled(),
+        initial_session=init,
         course=course,
         is_student=True
     )
@@ -530,8 +540,12 @@ def welcome_page():
     if u["role"] != "student":
         return redirect(home_for(u))
     classes = [class_dict(c) for c in visible_classes()]
-    return render_template("welcome.html", anon=False, first=u["first_name"] or u["username"],
-                           classes=classes)
+    first = u["first_name"] or u["username"]
+    seen = {r["class_id"]: r["last_opened"]
+            for r in q("SELECT class_id, last_opened FROM course_visits WHERE user_id=?", (u["id"],))}
+    classes.sort(key=lambda c: seen.get(c["id"], ""), reverse=True)   # never-opened classes keep their order, last
+    return render_template("welcome.html", anon=False, first=first,
+                           classes=classes[:3], total_classes=len(classes))
 
 
 @bp.get("/ta/<token>")
@@ -557,9 +571,11 @@ def account_page():
 
 @bp.get("/help")
 def help_page():
-    if not current_user():
+    u = current_user()
+    if not u:
         return redirect("/login")
-    return render_template("help.html", anon=False)
+    tpl = "help_student.html" if u["role"] == "student" else "help.html"
+    return render_template(tpl, anon=False)
 
 
 @bp.get("/calendar")
@@ -665,6 +681,8 @@ def class_patch(cid):
 def class_delete(cid):
     if not can_class(g.p, cid):
         return err("Class not found.", 404)
+    run("DELETE FROM usage_events WHERE class_id=?", (cid,))
+    run("DELETE FROM llm_tasks WHERE assignment_id IN (SELECT id FROM assignments WHERE class_id=?)", (cid,))
     run("DELETE FROM classes WHERE id=?", (cid,))
     return jsonify(ok=True)
 
@@ -766,6 +784,18 @@ def student_active(cid, eid):
     return jsonify(ok=True, active=not b(e["active"]))
 
 
+@bp.delete("/api/classes/<cid>/students/<eid>")
+@inst_api(instructor_only=True)
+def student_remove(cid, eid):
+    if not can_class(g.p, cid):
+        return err("Class not found.", 404)
+    e = q1("SELECT * FROM enrollments WHERE id=? AND class_id=?", (eid, cid))
+    if not e:
+        return err("Student not found.", 404)
+    run("DELETE FROM enrollments WHERE id=?", (eid,))
+    return jsonify(ok=True)
+
+
 @bp.post("/api/classes/<cid>/students/<eid>/reset_link")
 @inst_api(instructor_only=True)
 def student_reset_link(cid, eid):
@@ -801,6 +831,8 @@ ROSTER_HTML = """{% if not rows %}<div class="muted">No students yet.</div>{% en
           onclick="studentResetLink({{ e.id|tojson|forceescape }}, {{ nm|tojson|forceescape }})">🔑</button>
   <button type="button" class="btn small" onclick="toggleStudent({{ e.id|tojson|forceescape }})">
     {{ 'Deactivate' if e.active else 'Activate' }}</button>
+  <button type="button" class="btn small" style="color:#b91c1c;" title="Remove from class"
+          onclick="removeStudent({{ e.id|tojson|forceescape }}, {{ nm|tojson|forceescape }})">✕</button>
 </div>{% endfor %}"""
 
 
@@ -959,6 +991,7 @@ def asn_patch(aid):
 def asn_delete(aid):
     if not can_asn(g.p, aid):
         return err("Assignment not found.", 404)
+    run("DELETE FROM llm_tasks WHERE assignment_id=?", (aid,))
     run("DELETE FROM assignments WHERE id=?", (aid,))
     return jsonify(ok=True)
 

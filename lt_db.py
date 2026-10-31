@@ -92,6 +92,12 @@ CREATE TABLE IF NOT EXISTS llm_tasks (
   status TEXT DEFAULT 'failed', error TEXT DEFAULT '', created_at TEXT
 );
 
+-- Last time each user opened each class (drives "Most recent classes" on the welcome page).
+CREATE TABLE IF NOT EXISTS course_visits (
+  user_id TEXT NOT NULL, class_id TEXT NOT NULL, last_opened TEXT NOT NULL,
+  PRIMARY KEY (user_id, class_id)
+);
+
 CREATE TABLE IF NOT EXISTS usage_events (
   day TEXT, user_key TEXT, class_id TEXT, UNIQUE(day, user_key, class_id)
 );
@@ -143,6 +149,12 @@ def close_db(_exc=None):
 def init_db():
     con = sqlite3.connect(DB_PATH)
     con.executescript(SCHEMA)
+    for ddl in ("ALTER TABLE sessions ADD COLUMN mode TEXT DEFAULT ''",      # conversation | deep_coding
+                "ALTER TABLE files ADD COLUMN stdin TEXT DEFAULT ''"):       # saved program input (Deep Coding)
+        try:
+            con.execute(ddl)
+        except sqlite3.OperationalError:                                      # column already exists
+            pass
     con.execute("PRAGMA journal_mode = WAL")
     con.commit()
     con.close()

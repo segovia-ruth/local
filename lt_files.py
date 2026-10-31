@@ -218,6 +218,45 @@ def gen_summary():
     return jsonify(ok=True, summary=summary)
 
 
+# ── student access to assignment PDFs ────────────────────────────────────────
+
+def _student_asn(aid):
+    """Assignment the logged-in student may see: enrolled + active enrollment, class and assignment."""
+    from lt_common import current_user
+    u = current_user()
+    if not u or u["role"] != "student":
+        return None
+    return q1("SELECT a.* FROM assignments a JOIN classes c ON c.id=a.class_id "
+              "JOIN enrollments e ON e.class_id=c.id "
+              "WHERE a.id=? AND a.active=1 AND c.is_active=1 AND e.user_id=? AND e.active=1", (aid, u["id"]))
+
+
+def _is_pdf(f):
+    return (f["mimetype"] or "") == "application/pdf" or (f["name"] or "").lower().endswith(".pdf")
+
+
+@bp.get("/api/student/assignment_pdfs")
+def student_pdfs():
+    a = _student_asn(request.args.get("assignment_id", ""))
+    if not a:
+        return err("Assignment not found.", 404)
+    # Only files the instructor left switched on: turning a PDF off hides it from students too.
+    rows = q("SELECT id, name, size, mimetype FROM files WHERE assignment_id=? AND active=1 ORDER BY name COLLATE NOCASE", (a["id"],))
+    return jsonify(files=[{"id": f["id"], "name": f["name"], "size": f["size"],
+                           "url": f"/api/student/assignment_pdf/{f['id']}"} for f in rows if _is_pdf(f)])
+
+
+@bp.get("/api/student/assignment_pdf/<fid>")
+def student_pdf(fid):
+    f = q1("SELECT * FROM files WHERE id=? AND assignment_id IS NOT NULL AND active=1", (fid,))
+    if not f or not _is_pdf(f) or not _student_asn(f["assignment_id"]):
+        return err("File not found.", 404)
+    safe = f["name"].replace('"', "").replace("\r", "").replace("\n", "")
+    return Response(bytes(f["data"] or b""), mimetype="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{safe}"',
+                             "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
+
+
 # ── failed LLM tasks ─────────────────────────────────────────────────────────
 
 @bp.get("/api/instructor/llm_tasks")

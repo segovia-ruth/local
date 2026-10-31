@@ -1,4 +1,5 @@
 """Auth principals, access checks, JSON helpers and serializers shared by all blueprints."""
+import os
 import re
 from datetime import datetime
 from functools import wraps
@@ -10,6 +11,11 @@ from lt_db import jdump, jload, q, q1, run
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TIME_RE = re.compile(r"^\d{2}:\d{2}$")
+
+
+def deep_enabled():
+    """Deep Coding IDE on/off for the whole server (LT_DEEP_CODING=0 turns it off)."""
+    return os.environ.get("LT_DEEP_CODING", "1") != "0"
 
 
 def err(msg, code=400, **extra):
@@ -201,6 +207,7 @@ def asn_dict(a):
         "description": a["description"] or "", "remarks_active": b(a["remarks_active"]),
         "active": b(a["active"]), "due": a["due_date"], "due_date": a["due_date"],
         "due_time": a["due_time"], "created_at": a["created_at"], "file_count": n_files,
+        "deep_coding_enabled": deep_enabled(),
     }
 
 
