@@ -1,3 +1,11 @@
 Flask>=3.0
 openpyxl>=3.1        # roster .xlsx upload (CSV works without it)
 anthropic>=0.40      # OPTIONAL: AI tutoring + summaries (also set ANTHROPIC_API_KEY)
+
+# ── Local AI tutor (NOT installable with pip) ───────────────────────────────
+# Default AI is a local model served by Ollama. Install it separately:
+#   1. Install Ollama from https://ollama.com and start it (the desktop app, or: ollama serve)
+#   2. ollama pull qwen2.5-coder:7b          # ~4.7 GB download, needs roughly 8 GB of free RAM
+# LeafTutor talks to Ollama over HTTP using only the Python standard library, so no extra pip package is needed.
+# Check it works:  python lt_llm.py
+# Use another model:  set LT_LOCAL_MODEL (see README, "AI tutor setup").
