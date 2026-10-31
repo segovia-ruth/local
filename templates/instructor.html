@@ -8,6 +8,97 @@
 {% block body_class %}instructor-page{% endblock %}
 
 {% block extra_head %}
+
+<!--
+  PURPOSE: Load the shared course navigation styles.
+  REASON: The instructor course pages need the same sidebar
+  layout, colors, and selected-tab styling as Course Overview.
+  This reuses existing CSS instead of duplicating it.
+-->
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+
+
+<style>
+/*
+ * PURPOSE: Keep instructor course navigation consistent.
+ * REASON: Side uses a left column; Top uses a full-width
+ * navigation row above the course content.
+ */
+
+/* Default Side layout. */
+html.course-mode .main-layout {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  margin-left: 0;
+  min-width: 0;
+}
+
+html.course-mode .instructor-course-navigation {
+  grid-column: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html.course-mode .course-navigation-side {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+html.course-mode .course-navigation-top {
+  display: none;
+}
+
+html.course-mode .instructor-course-navigation .course-sidebar {
+  width: 100%;
+  height: 100%;
+}
+
+html.course-mode .main-layout > .container {
+  grid-column: 2;
+  min-width: 0;
+  width: 100%;
+  max-width: 1000px;
+}
+
+/*
+ * Top layout: remove the sidebar column and position
+ * the horizontal navigation above the main content.
+ */
+html.course-mode[data-course-nav="top"] .main-layout {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+html.course-mode[data-course-nav="top"] .instructor-course-navigation {
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+html.course-mode[data-course-nav="top"] .course-navigation-side {
+  display: none;
+}
+
+html.course-mode[data-course-nav="top"] .course-navigation-top {
+  display: block;
+  width: 100%;
+}
+
+html.course-mode[data-course-nav="top"] .main-layout > .container {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+</style>
+
+
 <!-- Capability object for the Alpine store (instructor mode when served at /instructor).
      In TA mode every fetch carries X-LT-Actor: ta so the backend resolves the TA
      principal even when an instructor is logged in in the same browser. -->
@@ -31,8 +122,11 @@
   (function () {
     var p = new URLSearchParams(location.search);
     if (!p.get('class') || (window.LT_PANEL && window.LT_PANEL.mode === 'ta')) return;
+    // PURPOSE: Identify the selected instructor course section.
+// REASON: Teaching Assistants needs its own layout, separate from Assignments and Roster.
     document.documentElement.classList.add('course-mode',
-      p.get('view') === 'roster' ? 'cv-roster' : 'cv-assignments');
+       p.get('view') === 'roster' ? 'cv-roster' :
+        p.get('view') === 'tas' ? 'cv-tas' : 'cv-assignments');
     // ?class=<id>&assignment=<id>: seed the store's own "last accessed" cookie; store.init()
     // then restores exactly that class + assignment (restoreLastAccessed) with no race.
     if (p.get('assignment')) {
@@ -44,11 +138,11 @@
 <style>
   .sidebar-asn-due { font-size: 11px; max-width: 118px; padding: 2px 4px; }
 
-  /* Course pages (Assignments / Roster & audit): one centered column.
-     Root cause of the left-hugging layout: .main-layout is a CSS grid with columns
-     "auto 1fr". With the sidebar hidden in course mode, .container lands in the narrow
-     `auto` column. Give it a single full-width column, then cap + center it. */
-  .course-mode .main-layout { grid-template-columns: minmax(0, 1fr); }
+  /*
+  PURPOSE: Keep the instructor course content centered.
+  REASON: The two-column layout is already defined earlier in this file.
+  We must not override it with a one-column layout here.
+*/
   .course-mode .main-layout > .container {
     width: 100%;
     max-width: 1000px;      /* same as the Courses / Calendar pages; change to taste */
@@ -58,10 +152,29 @@
   .course-mode #rosterAssignSplit.lt-split { padding-right: 0; }
   .course-bar { display: none; }
   .course-mode .course-bar {
-    display: flex; align-items: center; gap: 16px; height: 56px; box-sizing: border-box;
+    display: none; align-items: center; gap: 16px; height: 56px; box-sizing: border-box;
     padding: 0 var(--g); background: var(--lt-bg-container);
     border-bottom: 1px solid var(--lt-border-secondary);
   }
+
+/*
+ * PURPOSE: Hide the old horizontal course tabs in Side mode.
+ * REASON: The sage-green course sidebar already provides
+ * course navigation, so both should not appear together.
+ */
+  html[data-course-nav="side"].course-mode .course-bar {
+    display: none;
+  }
+
+/*
+ * PURPOSE: Restore the full content height in Side mode.
+ * REASON: The original layout reserves 56px for the top tabs,
+ * even when those tabs are hidden.
+ */
+html[data-course-nav="side"].course-mode .main-layout {
+  height: calc(100vh - var(--nav-h));
+  }
+
   .course-back { color: var(--lt-text-secondary); text-decoration: none; white-space: nowrap; }
   .course-back:hover { color: var(--lt-primary); }
   .course-bar-title { font-weight: 600; color: var(--lt-text); min-width: 0; flex: 1;
@@ -72,7 +185,16 @@
   .course-tab:hover { background: var(--lt-fill-tertiary); color: var(--lt-text); }
   .course-tab.active { background: var(--lt-primary-bg); color: var(--lt-primary-active); }
 
-  .course-mode .main-layout { height: calc(100vh - var(--nav-h) - 56px); }
+
+/*
+ * PURPOSE: Give the shared course navigation the full workspace.
+ * REASON: The legacy 56px navigation bar is no longer displayed.
+ */
+  .course-mode .main-layout {
+    height: calc(100vh - var(--nav-h));
+    min-height: 0;
+  }
+
   /* Left column becomes "this course's assignments": hide class header + other classes */
   .course-mode .sidebar-header,
   .course-mode .class-item-header { display: none !important; }
@@ -94,7 +216,83 @@
   .course-mode.cv-roster #rosterSection { flex: 1 1 100% !important; }
   .course-mode.cv-roster .lt-handle,
   .course-mode.cv-roster .roster-collapse-btn { display: none !important; }
+
+
+  /*
+ * PURPOSE: Give Teaching Assistants a dedicated course view.
+ * REASON: Reuse the existing TA management panel while hiding
+ * the assignment, roster, and audit interfaces.
+ */
+.course-mode.cv-tas #assignSection,
+.course-mode.cv-tas .roster-tab-bar,
+.course-mode.cv-tas .roster-collapsed-label,
+.course-mode.cv-tas #rosterTabPanel,
+.course-mode.cv-tas #auditTabPanel,
+.course-mode.cv-tas .lt-handle,
+.course-mode.cv-tas .roster-collapse-btn {
+  display: none !important;
+}
+
+/* Let the Teaching Assistants section use the available space. */
+.course-mode.cv-tas #rosterSection {
+  display: block !important;
+  flex: 1 1 100% !important;
+}
+
+/* Display the existing TA management interface on this page only. */
+.course-mode.cv-tas #assistantTabPanel {
+  display: block !important;
+}
+
+/*
+ * PURPOSE: Stack assignment creation above assignment panels.
+ * REASON: The form belongs inside the course content,
+ * not above or beside the course navigation.
+ */
+html.course-mode .main-layout > .container {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+html.course-mode .course-create-assignment {
+  flex: 0 0 auto;
+  margin-bottom: 16px;
+}
+
+html.course-mode #rosterAssignSplit {
+  flex: 1 0 auto;
+  min-height: 300px;
+}
+
+/*
+ * PURPOSE: Keep form fields usable on narrower screens.
+ * REASON: The title, date, time, and button should wrap
+ * instead of overflowing the content area.
+ */
+@media (max-width: 900px) {
+  html.course-mode #courseAddAsgForm {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 550px) {
+  html.course-mode #courseAddAsgForm {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+
 </style>
+
+<!--
+  Load the shared course workspace styles.
+  These styles will support the course-specific sidebar
+  on instructor Assignments and Roster pages.
+-->
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
 
 <!-- Syntax highlighting for the file-content editors (light theme scoped in app.css) -->
 <script src="{{ static_v('vendor/highlight/highlight.min.js') }}"></script>
@@ -108,6 +306,9 @@
 
 
 {% block content %}
+
+
+
   <!-- Course bar (course mode only): back link, class name, page switch -->
   <div class="course-bar"
        x-data="{ cid: new URLSearchParams(location.search).get('class'),
@@ -122,46 +323,36 @@
     </nav>
   </div>
 
-<!--
-  Course assignment creation:
-  The original Add Assignment field is inside the sidebar, which is hidden
-  in course mode. This section gives instructors a visible way to create
-  assignments without changing the existing backend or sidebar behavior.
--->
-<div class="course-create-assignment"
-     x-show="!$store.inst.isTA && $store.inst.currentClassId"
-     x-cloak
-     style="padding:16px 24px;border-bottom:1px solid var(--lt-border-secondary);">
-
-  <div style="max-width:950px;margin:auto;">
-
-    <h3 style="margin:0 0 8px;">Create Assignment</h3>
-
-    <!-- Store the new assignment title in the existing Alpine state. -->
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-
-      <input
-        type="text"
-        placeholder="Assignment title (e.g. Python Variables Practice)"
-        style="flex:1;min-width:220px;padding:10px;"
-        x-model="$store.inst.newCourseAssignmentTitle"
-        @keydown.enter.prevent="$store.inst.createCourseAssignment()"
-      >
-
-      <!-- Create a draft using the existing assignment API. -->
-      <button
-        type="button"
-        class="btn"
-        @click="$store.inst.createCourseAssignment()">
-        + Add Assignment
-      </button>
-
-    </div>
-  </div>
-</div>
-
   <!-- Main layout: sidebar (classes) & resizable roster and assignments panels -->
   <div class="main-layout" x-init="$store.inst.init()">
+
+
+{#
+  PURPOSE: Load the new course navigation components.
+  REASON: Instructor course pages should use the same Side/Top
+  navigation components as the Course Overview page.
+
+  The Customize setting will control which navigation is visible.
+  Assignment, roster, and tutoring functionality remain unchanged.
+#}
+
+{% if course is defined and course and not is_ta %}
+  <div class="instructor-course-navigation">
+
+    <!-- Vertical course navigation. -->
+    <div class="course-navigation-side">
+      {% include "course_navbar/crs_navbar_vertical.html" %}
+    </div>
+
+    <!-- Horizontal course navigation. -->
+    <div class="course-navigation-top">
+      {% include "course_navbar/crs_navbar_horizontal.html" %}
+    </div>
+
+  </div>
+{% endif %}
+
+
     <!-- Sidebar = Classes -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header" style="display:flex;justify-content:space-between;align-items:center;">
@@ -271,9 +462,187 @@
       </div>
     </aside>
 
-    <!-- Middle + Right = resizable split -->
-    <div class="container">
-      <div id="rosterAssignSplit" class="lt-split">
+   
+<!-- Middle + Right = course content and resizable panels -->
+<div class="container">
+
+  {#
+    PURPOSE: Show assignment creation only on the Assignments tab.
+    REASON: Keeping this form inside the content container places
+    it below Top navigation or beside Side navigation.
+  #}
+  {% if course is defined and course and not is_ta
+        and request.args.get('view', 'assignments') == 'assignments' %}
+
+  <section class="panel course-create-assignment"
+           aria-label="Create Assignment">
+
+    <h2>Create Assignment</h2>
+
+    <!--
+      PURPOSE: Match the Overview assignment form.
+      REASON: Instructors should have the same title, due date,
+      and due time options on both pages.
+    -->
+    <form id="courseAddAsgForm"
+          style="display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:8px;align-items:end;">
+
+      <label style="display:grid;gap:4px;">
+        <span class="muted">Title</span>
+        <input id="courseAddAsgTitle" type="text"
+               placeholder="New assignment title"
+               maxlength="200" required
+               style="padding:8px 10px;">
+      </label>
+
+      <label style="display:grid;gap:4px;">
+        <span class="muted">Due date</span>
+        <input id="courseAddAsgDue" type="date"
+               style="padding:8px 10px;">
+      </label>
+
+      <label style="display:grid;gap:4px;">
+        <span class="muted">Time</span>
+        <input id="courseAddAsgTime" type="time"
+               style="padding:8px 10px;">
+      </label>
+
+      <button id="courseAddAsgBtn" type="submit"
+              class="btn-ghost"
+              style="padding:9px 16px;border-radius:var(--lt-radius);">
+        + Add
+      </button>
+    </form>
+
+    <div id="courseAddAsgMsg" class="muted"
+         style="margin-top:8px;min-height:1.2em;"
+         aria-live="polite"></div>
+
+  </section>
+
+
+<script>
+/*
+ * PURPOSE: Create assignments with an optional due date and time.
+ * REASON: Match the existing Overview page's API workflow
+ * without changing the instructor dashboard's Alpine store.
+ */
+(function () {
+  const CLASS_ID = {{ course.id|tojson }};
+
+  const form = document.getElementById('courseAddAsgForm');
+  const btn = document.getElementById('courseAddAsgBtn');
+  const msg = document.getElementById('courseAddAsgMsg');
+
+  if (!form) return;
+
+  async function api(url, method, body) {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+
+    const data = await response.json().catch(() => ({}));
+    return { ok: response.ok && !data.error, data };
+  }
+
+  async function listAssignments() {
+    const response = await fetch(
+      '/api/instructor/assignments?class_id=' +
+      encodeURIComponent(CLASS_ID)
+    );
+
+    const data = await response.json().catch(() => []);
+    return Array.isArray(data) ? data : [];
+  }
+
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+
+    const title = document.getElementById('courseAddAsgTitle').value.trim();
+    const due = document.getElementById('courseAddAsgDue').value;
+    const time = document.getElementById('courseAddAsgTime').value;
+
+    if (!title) return;
+
+    btn.disabled = true;
+    msg.textContent = 'Creating assignment…';
+
+    try {
+      // First create the assignment as a draft.
+      const created = await api(
+        '/api/instructor/assignments',
+        'POST',
+        { class_id: CLASS_ID, title: title }
+      );
+
+      if (!created.ok) {
+        throw new Error(created.data.error || 'Could not create assignment.');
+      }
+
+      // Then save the optional due date and time.
+      if (due) {
+        let id = created.data.id ||
+          (created.data.assignment && created.data.assignment.id);
+
+        if (!id) {
+          const assignments = await listAssignments();
+          const match = assignments
+            .filter(a => (a.title || a.name) === title)
+            .pop();
+
+          id = match && match.id;
+        }
+
+        if (!id) {
+          msg.textContent =
+            'Assignment created, but its due date could not be saved.';
+          btn.disabled = false;
+          return;
+        }
+
+        const patch = { due: due, due_date: due };
+        if (time) patch.due_time = time;
+
+        const updated = await api(
+          '/api/instructor/assignments/' + encodeURIComponent(id),
+          'PATCH',
+          patch
+        );
+
+        if (!updated.ok) {
+          msg.textContent =
+            'Assignment created, but saving the due date failed: ' +
+            (updated.data.error || 'Unknown error.');
+          btn.disabled = false;
+          return;
+        }
+      }
+
+      // Reload so the existing instructor store refreshes its assignment data.
+      location.reload();
+
+    } catch (error) {
+      msg.textContent = error.message || 'Something went wrong.';
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+
+
+
+
+  {% endif %}
+
+  <div id="rosterAssignSplit" class="lt-split">
+
+
+
         <!-- Assignments -->
         <section class="card" id="assignSection" aria-label="Assignment">
           <!-- Tab bar: Assignment Files | Tutoring | Audit -->

@@ -1,0 +1,153 @@
+
+{#
+  PURPOSE: Shared vertical course navigation.
+  REASON: Keep course links, active highlights, and the
+  All Courses back link consistent across course pages.
+#}
+
+{#
+  PURPOSE: Give students a separate, collapsible course navigation.
+  REASON: The student AI Tutor needs more workspace, while instructor
+  navigation must retain its existing layout.
+#}
+<aside class="course-sidebar{% if is_student %} student-course-sidebar{% endif %}"
+       aria-label="Course navigation">
+
+  {% if is_student %}
+
+  <!--
+    PURPOSE: Let students expand or collapse course navigation.
+    REASON: The collapsed version uses icons to preserve tutoring space.
+    JavaScript and CSS will be added in the next steps.
+  -->
+  <div class="student-course-sidebar-header">
+    <button type="button"
+            class="student-course-toggle"
+            id="studentCourseNavToggle"
+            aria-label="Expand or collapse course navigation"
+            aria-expanded="false"
+            title="Expand or collapse course navigation">
+      ☰
+    </button>
+
+    <strong class="student-course-label">{{ course.name }}</strong>
+  </div>
+
+{% else %}
+
+  <!-- Preserve the existing instructor course header. -->
+  <div class="course-sidebar-header">
+    <a href="/courses" class="course-back">
+      ← All Courses
+    </a>
+
+    <strong>{{ course.name }}</strong>
+    <span>{{ course.term or '' }}</span>
+  </div>
+
+{% endif %}
+
+  {#
+    PURPOSE: Identify the selected course navigation tab.
+    REASON: The Assignments page uses the same /courses/ route
+    as Overview, so we must distinguish them using ?view=assignments.
+  #}
+  {% set current_view = request.args.get('view', '') %}
+  {% set on_overview = request.path.startswith('/courses/') and current_view != 'assignments' %}
+
+  <nav class="course-sidebar-nav">
+
+    {% if is_student %}
+
+    <!--
+      PURPOSE: Return to the student's course list.
+      REASON: Keep this option accessible even when the sidebar is collapsed.
+    -->
+    <a class="course-nav-link student-course-link"
+       href="/courses"
+       title="All Courses"
+       aria-label="All Courses">
+      <span class="student-course-icon" aria-hidden="true">←</span>
+      <span class="student-course-label">All Courses</span>
+    </a>
+
+    <!--
+      PURPOSE: Open the current course overview.
+      REASON: Show an icon when collapsed and a label when expanded.
+    -->
+    <a class="course-nav-link student-course-link{% if on_overview %} active{% endif %}"
+       href="/courses/{{ course.id|urlencode }}"
+       title="Overview"
+       aria-label="Overview">
+<!-- PURPOSE: Match the Overview icon used in Top navigation. -->
+    <span class="student-course-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20"
+            fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+        <path d="M3 9h18M9 9v12"></path>
+        </svg>
+    </span>      
+      <span class="student-course-label">Overview</span>
+    </a>
+
+    <!--
+  PURPOSE: Open the assignment list for the selected course.
+  REASON: Students should choose an assignment before entering
+  its AI Tutor workspace. Preserve the course ID in the URL.
+-->
+    <a class="course-nav-link student-course-link{% if request.path.startswith('/courses/') and request.args.get('view') == 'assignments' %} active{% endif %}"
+        href="/courses/{{ course.id|urlencode }}?view=assignments"
+       title="Assignments"
+       aria-label="Assignments">
+<!-- PURPOSE: Match the Assignments icon used in Top navigation. -->
+    <span class="student-course-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20"
+                fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="3" width="16" height="18" rx="2"></rect>
+            <path d="M8 8h8M8 12h8M8 16h5"></path>
+        </svg>
+    </span>
+       <span class="student-course-label">Assignments</span>
+    </a>
+
+    {% else %}
+
+    <!--
+      PURPOSE: Preserve the instructor Overview link.
+      REASON: Instructor navigation must not change.
+    -->
+    <a class="course-nav-link{% if on_overview %} active{% endif %}"
+       href="/courses/{{ course.id|urlencode }}">
+      Overview
+    </a>
+
+    
+
+
+<!-- Instructor Assignments management. -->
+<a class="course-nav-link{% if request.path == '/instructor' and current_view == 'assignments' %} active{% endif %}"
+   href="/instructor?class={{ course.id|urlencode }}&view=assignments">
+  Assignments
+</a>
+
+
+    <!-- Instructor-only roster. -->
+    <a class="course-nav-link{% if request.path == '/instructor' and current_view == 'roster' %} active{% endif %}"
+       href="/instructor?class={{ course.id|urlencode }}&view=roster">
+     Roster &amp; Audit
+    </a>
+
+    <!-- Instructor-only teaching assistants. -->
+    <a class="course-nav-link{% if request.path == '/instructor' and current_view == 'tas' %} active{% endif %}"
+       href="/instructor?class={{ course.id|urlencode }}&view=tas">
+      Teaching Assistants
+    </a>
+
+    {% endif %}
+
+
+  </nav>
+</aside>
+

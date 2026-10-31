@@ -29,11 +29,12 @@
     <div class="navbar-right">
       {% block navbar_actions %}{% endblock %}
 
-      <!-- Customization: shown for everyone, including anonymous/TA pages -->
+      <!-- Customization: shown for everyone, including anonymous/TA pages 
       <button type="button" id="customizationButton" class="customization-button"
               aria-label="Open customization settings" aria-expanded="false" aria-controls="customizationPanel">
         <span aria-hidden="true">⚙</span><span class="cz-label">Customization</span>
       </button>
+-->
 
       {% if not anon %}
       <!-- Avatar dropdown: Account + Log out -->
@@ -107,6 +108,23 @@
       <label class="a11y-check"><input type="checkbox" data-pref="readableFont"> <span>Readable font</span></label>
       <label class="a11y-check"><input type="checkbox" data-pref="focusRing"> <span>Strong focus outline</span></label>
     </div>
+
+<!--
+  PURPOSE: Let users choose the location of course navigation.
+  REASON: Support both a vertical sidebar and horizontal tabs.
+  The preference will be connected to JavaScript next.
+-->
+      <div class="customization-option">
+        <label for="courseNavLayout">
+          Course Navigation Layout
+        </label>
+
+        <select id="courseNavLayout">
+          <option value="side">Side navigation (default)</option>
+          <option value="top">Top navigation</option>
+        </select>
+      </div>
+
 
     <button type="button" id="resetCustomization" class="reset-customization">Reset to Default</button>
   </div>

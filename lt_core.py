@@ -1,4 +1,5 @@
 """Auth, page routes, classes, roster, teaching assistants, assignments, calendar."""
+from asyncio import events
 import csv
 import io
 import re
@@ -185,8 +186,45 @@ def courses_page():
     student = u["role"] == "student"
     cards = []
     for c in visible_classes():
-        n = q1("SELECT COUNT(*) n FROM assignments WHERE class_id=?" + (" AND active=1" if student else ""),
-               (c["id"],))["n"]
+                # PURPOSE: Show students only current published assignments.
+        # REASON: Past assignments belong in the course history, not the current count.
+        if student:
+            published = q(
+                "SELECT * FROM assignments WHERE class_id=? AND active=1",
+                (c["id"],)
+            )
+
+            current_time = datetime.now()
+            n = 0
+
+            for assignment in published:
+                due_date = assignment["due_date"]
+
+                # Published assignments without deadlines are considered current.
+                if not due_date:
+                    n += 1
+                    continue
+
+                due_time = assignment["due_time"] or "23:59"
+
+                try:
+                    deadline = datetime.strptime(
+                        f"{due_date} {due_time}", "%Y-%m-%d %H:%M"
+                    )
+
+                    if deadline >= current_time:
+                        n += 1
+
+                except (ValueError, TypeError):
+                    # Keep assignments with invalid deadlines in the current count.
+                    n += 1
+        else:
+            # PURPOSE: Preserve the instructor's total created assignment count.
+            # REASON: Instructors need to see published and unpublished assignments.
+            n = q1(
+                "SELECT COUNT(*) n FROM assignments WHERE class_id=?",
+                (c["id"],)
+            )["n"]
         d = class_dict(c)
         cards.append({**d, "assignments": n, "url": f"/courses/{quote(c['id'])}",
                       "assignments_url": f"/courses/{quote(c['id'])}#assignments"})
@@ -210,13 +248,132 @@ def course_page(course_id):
     if not c:
         return error_page("Not found", "That course doesn't exist or you don't have access.", status=404)
     d = class_dict(c)
-    if u["role"] == "student":      # read-only view: only assignments the instructor has activated
-        d["assignments"] = [asn_dict(a) for a in
-                            q("SELECT * FROM assignments WHERE class_id=? AND active=1 ORDER BY created_at", (c["id"],))]
-        return render_template("course_detail.html", anon=False, course=d, is_student=True)
-    d["assignments"] = [asn_dict(a) for a in q("SELECT * FROM assignments WHERE class_id=? ORDER BY created_at", (c["id"],))]
-    return render_template("course_detail.html", anon=False, course=d)
+    if u["role"] == "student":
+        # PURPOSE: Show students only assignments activated by the instructor.
+        # REASON: The assignment query and dashboard calculations below
+        # already handle loading and displaying the student course.
 
+            # PURPOSE: Retrieve the assignments already available to students.
+        # REASON: Reuse this data for the Overview dashboard and Assignments page.
+        published_assignments = q(
+            "SELECT * FROM assignments WHERE class_id=? AND active=1 ORDER BY created_at",
+            (c["id"],)
+        )
+
+                # PURPOSE: Separate published assignments into current and past.
+        # REASON: The student Assignments page needs two lists while
+        # keeping the existing Overview dashboard calculations unchanged.
+        d["assignments"] = [asn_dict(a) for a in published_assignments]
+
+        current_time = datetime.now()
+
+        for assignment in d["assignments"]:
+            due_date = assignment.get("due_date")
+            due_time = assignment.get("due_time") or "23:59"
+
+            # Assignments without a due date remain current.
+            assignment["is_past"] = False
+
+            if not due_date:
+                continue
+
+            try:
+                deadline = datetime.strptime(
+                    f"{due_date} {due_time}", "%Y-%m-%d %H:%M"
+                )
+
+                assignment["is_past"] = deadline < current_time
+
+            except (ValueError, TypeError):
+                # Invalid dates remain current rather than breaking the page.
+                continue
+
+        # Store separate lists for the student Assignments page.
+        d["current_assignments"] = [
+            a for a in d["assignments"] if not a["is_past"]
+        ]
+        d["past_assignments"] = [
+            a for a in d["assignments"] if a["is_past"]
+        ]
+
+        # PURPOSE: Count published assignments whose deadlines have passed.
+        # REASON: Display accurate Past Due information without treating
+        # AI Tutor usage as assignment completion or submission.
+        current_time = datetime.now()
+        past_due_count = 0
+
+        for assignment in published_assignments:
+            due_date = assignment["due_date"]
+
+            # Assignments without deadlines cannot be considered past due.
+            if not due_date:
+                continue
+
+            # Use the instructor's deadline time when one is provided.
+            # Otherwise, treat the deadline as the end of its due date.
+            due_time = assignment["due_time"] or "23:59"
+
+            try:
+                deadline = datetime.strptime(
+                    f"{due_date} {due_time}", "%Y-%m-%d %H:%M"
+                )
+
+                if deadline < current_time:
+                    past_due_count += 1
+
+            except (ValueError, TypeError):
+                # Ignore invalid dates rather than breaking the course page.
+                continue
+
+        d["past_due_count"] = past_due_count
+
+        return render_template("course_detail.html", anon=False, course=d, is_student=True)
+    
+         # PURPOSE: Load the instructor's assignments for this course.
+    # REASON: Keep the existing assignment data available while
+    # calculating the Current and Past counts for Course Overview.
+    all_assignments = q(
+        "SELECT * FROM assignments WHERE class_id=? ORDER BY created_at",
+        (c["id"],)
+    )
+
+    d["assignments"] = [asn_dict(a) for a in all_assignments]
+
+    # PURPOSE: Automatically classify assignments using their deadlines.
+    # REASON: Past assignments should be determined by date and time,
+    # not by an instructor manually changing their status.
+    current_time = datetime.now()
+    past_count = 0
+
+    for assignment in all_assignments:
+        due_date = assignment["due_date"]
+
+        # An assignment without a due date remains Current.
+        if not due_date:
+            continue
+
+        # Use 11:59 PM when no specific due time was entered.
+        due_time = assignment["due_time"] or "23:59"
+
+        try:
+            deadline = datetime.strptime(
+                f"{due_date} {due_time}", "%Y-%m-%d %H:%M"
+            )
+
+            if deadline < current_time:
+                past_count += 1
+
+        except (ValueError, TypeError):
+            # Invalid deadlines remain in Current rather than
+            # breaking the course page.
+            continue
+
+        d["past_assignment_count"] = past_count
+        d["current_assignment_count"] = len(all_assignments) - past_count
+
+    # PURPOSE: Display the instructor's Course Overview.
+    # REASON: Return the course with its correct assignment information.
+    return render_template("course_detail.html", anon=False, course=d)
 
 @bp.get("/courses/<course_id>/assignments/<assignment_id>")
 def assignment_page(course_id, assignment_id):
@@ -230,22 +387,84 @@ def assignment_page(course_id, assignment_id):
 
 @bp.get("/instructor")
 def instructor_page():
+    # Require an authenticated instructor.
     u = current_user()
     if not u:
         return redirect("/login")
     if u["role"] != "instructor":
         return redirect("/student")
-    return render_template("instructor.html", anon=False, panel=None)
+
+    # Read the course selected in the URL, if one was provided.
+    course_id = request.args.get("class")
+    course = None
+
+    if course_id:
+        # Only allow instructors to open courses they own.
+        selected = next(
+            (c for c in visible_classes() if c["id"] == course_id),
+            None
+        )
+
+        if not selected:
+            return error_page(
+                "Not found",
+                "That course doesn't exist or you don't have access.",
+                status=404
+            )
+
+        # Supply the shared sidebar with the course name, term, and ID.
+        course = class_dict(selected)
+
+    # Preserve the existing instructor dashboard functionality.
+    return render_template(
+        "instructor.html",
+        anon=False,
+        panel=None,
+        course=course
+    )
 
 
 @bp.get("/student")
 def student_page():
+    # Require the student to be logged in before opening the AI Tutor.
     u = current_user()
     if not u:
         return redirect("/login")
-    return render_template("student.html", anon=False, feature_add_class=False,
-                           feature_deep_coding=False, initial_session=None)
 
+    # Read the course ID from a URL such as /student?class=COURSE_ID.
+    # A direct visit to /student will still work without a course.
+    course_id = request.args.get("class")
+    course = None
+
+    if course_id:
+        # Only accept courses the logged-in user is allowed to access.
+        # This prevents someone from opening another course by changing the URL.
+        selected = next(
+            (c for c in visible_classes() if c["id"] == course_id),
+            None
+        )
+
+        if not selected:
+            return error_page(
+                "Not found",
+                "That course doesn't exist or you don't have access.",
+                status=404
+            )
+
+        # Supply the course information needed by the navigation.
+        course = class_dict(selected)
+
+    # Keep the existing AI Tutor features and behavior unchanged.
+    # Course navigation will be displayed only when course is available.
+    return render_template(
+        "student.html",
+        anon=False,
+        feature_add_class=False,
+        feature_deep_coding=False,
+        initial_session=None,
+        course=course,
+        is_student=True
+    )
 
 # ── Instructor Home ──────────────────────────────────────────────────────────
 # This page is separate from the student Welcome page.
@@ -374,8 +593,17 @@ def calendar_page():
                     tm = datetime.strptime(a["due_time"], "%H:%M").strftime("%I:%M %p").lstrip("0")
                 except ValueError:
                     pass
-            events.append({"title": a["title"], "date": a["due_date"], "time": tm,
-                           "course": label, "type": "assignment"})
+            # PURPOSE: Include each assignment's publication status in calendar events.
+# REASON: The calendar will use the course's existing color, with a
+# darker appearance for published assignments and lighter for drafts.
+                events.append({
+                    "title": a["title"],
+                    "date": a["due_date"],
+                    "time": tm,
+                    "course": label,
+                    "type": "assignment",
+                    "published": bool(a["active"])
+                })
     return render_template("calendar.html", anon=False, events=events, usage={},
                            is_instructor=u["role"] == "instructor")
 

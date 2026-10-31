@@ -19,6 +19,12 @@
     var BGS = ['default', 'cream', 'mint', 'sky', 'neutral'];
 
     /*
+ * PURPOSE: Define the available course navigation layouts.
+ * REASON: Restrict saved preferences to supported options.
+ */
+    var NAV_LAYOUTS = ['side', 'top'];
+
+    /*
      * Preference name -> CSS class on <html>
      */
     var FLAGS = {
@@ -101,6 +107,25 @@
         var reduceMotion = read('reduceMotion');
         var background = read('background');
 
+        /*
+ * PURPOSE: Load the user's saved course navigation preference.
+ * REASON: Default to side navigation when no preference exists.
+ */
+        var navLayout = read('courseNavLayout');
+
+        /*
+ * PURPOSE: Remember whether the student course sidebar is collapsed.
+ * REASON: Default to the compact icon rail unless the student expanded it.
+ */
+        var savedStudentNav = read('studentCourseNavCollapsed');
+
+        state.studentCourseNavCollapsed = savedStudentNav !== 'false';
+
+        state.courseNavLayout =
+            NAV_LAYOUTS.indexOf(navLayout) !== -1
+                ? navLayout
+                : 'side';
+
         state.background =
             BGS.indexOf(background) !== -1
                 ? background
@@ -176,6 +201,61 @@
         );
 
         /*
+ * PURPOSE: Make the selected navigation layout available to CSS.
+ * REASON: Course pages can use this attribute to switch layouts.
+ */
+        root.setAttribute(
+            'data-course-nav',
+            state.courseNavLayout
+        );
+
+
+        /*
+ * PURPOSE: Make the collapse preference available to the page.
+ * REASON: CSS and navigation controls can use this saved state.
+ */
+root.setAttribute(
+    'data-student-course-nav-collapsed',
+    String(state.studentCourseNavCollapsed)
+);
+
+/*
+ * PURPOSE: Update the student sidebar when the preference changes.
+ * REASON: Keep its visible state synchronized with the saved setting.
+ */
+
+/*
+ * PURPOSE: Apply collapsing only inside the AI Tutor.
+ * REASON: Course Overview should always show the full navigation.
+ * The tutor can still use the student's saved collapse preference.
+ */
+var studentSidebar = document.querySelector(
+    'body.student-page .student-course-sidebar'
+);
+
+if (studentSidebar) {
+    studentSidebar.classList.toggle(
+        'is-expanded',
+        !state.studentCourseNavCollapsed
+    );
+
+    var studentToggle = document.getElementById('studentCourseNavToggle');
+
+    if (studentToggle) {
+        studentToggle.setAttribute(
+            'aria-expanded',
+            String(!state.studentCourseNavCollapsed)
+        );
+
+        studentToggle.setAttribute(
+            'title',
+            state.studentCourseNavCollapsed
+                ? 'Expand course navigation'
+                : 'Collapse course navigation'
+        );
+    }
+}
+        /*
          * Apply/remove accessibility classes.
          */
         Object.keys(FLAGS).forEach(function (name) {
@@ -217,6 +297,8 @@
         erase('theme');
         erase('fontSize');
         erase('background');
+        // Restore side navigation when preferences are reset.
+        erase('courseNavLayout');
 
         Object.keys(FLAGS).forEach(function (name) {
             erase(name);
@@ -259,6 +341,19 @@
             }
         });
 
+
+
+        /*
+ * PURPOSE: Keep the course navigation dropdown synchronized.
+ * REASON: When users reset preferences, the dropdown should
+ * immediately return to Side navigation.
+ */
+        var courseNavSelect = document.getElementById('courseNavLayout');
+
+        if (courseNavSelect) {
+            courseNavSelect.value = state.courseNavLayout;
+        }
+        
         /*
          * Font size buttons.
          */
@@ -422,6 +517,52 @@
             );
         });
 
+
+        /* ============================================================
+   COURSE NAVIGATION LAYOUT
+   PURPOSE: Save the user's Side / Top selection.
+   REASON: Keep the preference after refreshing or reopening.
+   ============================================================ */
+
+        var courseNavSelect = $('courseNavLayout');
+
+        /*
+ * PURPOSE: Connect the student course navigation toggle.
+ * REASON: Students can expand or collapse the icon rail without
+ * changing their selected Side/Top navigation preference.
+ */
+        var studentCourseToggle = $('studentCourseNavToggle');
+
+        if (studentCourseToggle &&
+            studentCourseToggle.dataset.ltCustomizationBound !== 'true') {
+
+    // Prevent attaching duplicate click handlers.
+            studentCourseToggle.dataset.ltCustomizationBound = 'true';
+
+            studentCourseToggle.addEventListener('click', function () {
+
+        // Reverse the current collapsed/expanded state and save it.
+                set(
+                    'studentCourseNavCollapsed',
+                    !state.studentCourseNavCollapsed
+        );
+    });
+}
+
+        if (courseNavSelect) {
+
+    // Display the current saved preference.
+            courseNavSelect.value = state.courseNavLayout;
+
+    // Save and apply changes when the user selects a layout.
+            courseNavSelect.addEventListener('change', function () {
+
+                if (NAV_LAYOUTS.indexOf(courseNavSelect.value) !== -1) {
+                 set('courseNavLayout', courseNavSelect.value);
+        }
+
+    });
+}
         /* ============================================================
            CUSTOMIZATION PANEL
            ============================================================ */

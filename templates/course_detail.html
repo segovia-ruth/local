@@ -19,16 +19,34 @@
 
   <!-- Navigation for the course currently being viewed. -->
   
-<!--
-  Shared course navigation.
-  The same sidebar will also be used on instructor course pages.
-  This keeps navigation consistent across the course workspace.
--->
-{% include "course_sidebar.html" %}
+
+{#
+  PURPOSE: Load both course navigation layouts.
+  REASON: The Customize setting will determine which
+  navigation is visible without changing course URLs.
+#}
+
+<!-- Vertical navigation: displayed when Side is selected. -->
+<div class="course-navigation-side">
+  {% include "course_navbar/crs_navbar_vertical.html" %}
+</div>
+
+<!-- Horizontal navigation: displayed when Top is selected. -->
+<div class="course-navigation-top">
+  {% include "course_navbar/crs_navbar_horizontal.html" %}
+</div>
+
 
 
   <!-- Existing course content stays inside its own scrollable area. -->
   <div class="page-scroll course-workspace-content">
+
+{#
+  PURPOSE: Identify when a student opens the Assignments tab.
+  REASON: Use the existing course page for both Overview and Assignments
+  without changing the instructor's page.
+#}
+{% set student_assignments_view = is_student and request.args.get('view') == 'assignments' %}
 
   <div class="page-inner">
     <nav class="crumbs" aria-label="Breadcrumb">
@@ -40,27 +58,104 @@
       {{ course.code or '' }}{% if course.code and course.term %} · {% endif %}{{ course.term or '' }}
     </p>
 
-    <section class="panel">
-      <h2>About this course</h2>
-      <dl class="facts">
-        {% if course.instructor %}<div><dt>Instructor</dt><dd>{{ course.instructor }}</dd></div>{% endif %}
-        {% if course.term %}<div><dt>Term</dt><dd>{{ course.term }}</dd></div>{% endif %}
-        <div><dt>Assignments</dt><dd>{{ course.assignments|length }}</dd></div>
-      </dl>
-      {% if course.description %}<p class="prose" style="margin-top:14px;">{{ course.description }}</p>{% endif %}
-    </section>
 
-    {% if not is_student %}
-    <p style="margin-bottom:var(--g);">
-      <a class="btn-ghost" style="display:inline-block;padding:8px 16px;border-radius:var(--lt-radius);text-decoration:none;"
-         href="/instructor?class={{ course.id|urlencode }}&view=roster">Roster &amp; audit</a>
-      {#
-      <button type="button" id="delCourseBtn" class="btn-ghost"
-              style="margin-left:8px;padding:8px 16px;border-radius:var(--lt-radius);color:#b91c1c;cursor:pointer;">Delete course</button>
-              #}
-    </p>
+    {#
+      PURPOSE: Show the course Overview unless the student selected Assignments.
+      REASON: Keep the Overview and Assignments pages separate.
+    #}
+    {% if not student_assignments_view %}
+      <section class="panel">
+        <h2>About this course</h2>
+
+        <dl class="facts">
+          {% if course.instructor %}
+            <div>
+              <dt>Instructor</dt>
+              <dd>{{ course.instructor }}</dd>
+            </div>
+          {% endif %}
+
+          {% if course.term %}
+            <div>
+              <dt>Term</dt>
+              <dd>{{ course.term }}</dd>
+            </div>
+          {% endif %}
+
+          {#
+            PURPOSE: Show current assignments for students.
+            REASON: Exclude past assignments from the current count,
+            while preserving the instructor's total assignment count.
+          #}
+          
+          {#
+  PURPOSE: Display current and past assignment counts separately.
+  REASON: Instructors should see the status of their course assignments
+  without opening the assignment-management page.
+#}
+
+          <div>
+            <dt>Current Assignments</dt>
+            <dd>
+             {% if is_student %}
+               {{ course.assignments|length - (course.past_due_count|default(0)) }}
+             {% else %}
+               {{ course.current_assignment_count|default(0) }}
+            {% endif %}
+            </dd>
+          </div>
+
+          {% if not is_student %}
+          <div>
+            <dt>Past Assignments</dt>
+            <dd>{{ course.past_assignment_count|default(0) }}</dd>
+          </div>
+          {% endif %}
+
+          {% if is_student %}
+            {#
+              PURPOSE: Show published assignments whose deadlines have passed.
+              REASON: Keep past assignments separate from current assignments.
+            #}
+            <div>
+              <dt>Past Assignments</dt>
+              <dd>{{ course.past_due_count|default(0) }}</dd>
+            </div>
+          {% endif %}
+        </dl>
+
+        {% if course.description %}
+          <p class="prose" style="margin-top:14px;">{{ course.description }}</p>
+        {% endif %}
+      </section>
     {% endif %}
 
+  
+    {#
+  PURPOSE: Temporarily hide the Roster & Audit shortcut from Course Overview.
+  REASON: Roster & Audit already has its own navigation tab.
+  The original code is preserved below for possible future use.
+#}
+
+{% if not is_student %}
+<p style="margin-bottom:var(--g);">
+  {#
+  <a class="btn-ghost" style="display:inline-block;padding:8px 16px;border-radius:var(--lt-radius);text-decoration:none;"
+     href="/instructor?class={{ course.id|urlencode }}&view=roster">Roster &amp; audit</a>
+  #}
+  {# <button ... Delete course ...></button> #}
+</p>
+{% endif %}
+    
+
+
+
+        {#
+  PURPOSE: Show the assignment list only on the student's Assignments page.
+  REASON: Instructor Overview now displays assignment counts instead of
+  the assignment creation form and full assignment list.
+#}
+  {% if student_assignments_view %}
     <section class="panel" id="assignments">
       <h2>Assignments</h2>
     {% if not is_student %}
@@ -82,37 +177,122 @@
       <div id="addAsgMsg" class="muted" style="margin-bottom:12px;min-height:1.2em;" aria-live="polite"></div>
       {% endif %}
     
-      {% if course.assignments %}
-      <div class="asg-list">
-        {% for a in course.assignments %}
-        <a class="asg-row" href="{% if is_student %}/student?assignment={{ a.id|urlencode }}{% else %}/instructor?class={{ course.id|urlencode }}&view=assignments&assignment={{ a.id|urlencode }}{% endif %}">
-          <div>
-            <div class="asg-title">{{ a.title }}</div>
-            {% if a.due %}<div class="asg-due">Due {{ a.due|nice_date }}{% if a.due_time %} at {{ a.due_time|nice_time }}{% endif %}</div>{% endif %}
+                  {% if is_student %}
+
+        {#
+          PURPOSE: Display current assignments for the selected course.
+          REASON: Students should see assignments with upcoming deadlines
+          separately from assignments whose deadlines have passed.
+        #}
+        <h3>Current Assignments</h3>
+
+        {% if course.current_assignments %}
+          <div class="asg-list">
+            {% for a in course.current_assignments %}
+              <a class="asg-row"
+                 href="/student?class={{ course.id|urlencode }}&assignment={{ a.id|urlencode }}">
+                <div>
+                  <div class="asg-title">{{ a.title }}</div>
+
+                  {% if a.due %}
+                    <div class="asg-due">
+                      Due {{ a.due|nice_date }}
+                      {% if a.due_time %} at {{ a.due_time|nice_time }}{% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+              </a>
+            {% endfor %}
           </div>
-          {#
-          <span style="display:flex;align-items:center;gap:10px;">
-            {% if a.status %}<span class="status {{ a.status }}">{{ a.status|capitalize }}</span>{% endif %}
-            <button type="button" class="btn-ghost" data-del-asg="{{ a.id }}" data-title="{{ a.title }}"
-                    title="Delete assignment" aria-label="Delete assignment {{ a.title }}"
-                    style="padding:4px 10px;border-radius:var(--lt-radius);color:#b91c1c;cursor:pointer;">Delete</button>
-          </span>
-          #}
-        </a>
-        {% endfor %}
-      </div>
+        {% else %}
+          <div class="course-empty">
+            No current assignments.
+          </div>
+        {% endif %}
+
+        {#
+          PURPOSE: Display assignments whose deadlines have passed.
+          REASON: Students should still be able to open older assignments
+          and access their associated AI Tutor conversations.
+        #}
+        <h3 style="margin-top:24px;">Past Assignments</h3>
+
+        {% if course.past_assignments %}
+          <div class="asg-list">
+            {% for a in course.past_assignments %}
+              <a class="asg-row"
+                 href="/student?class={{ course.id|urlencode }}&assignment={{ a.id|urlencode }}">
+                <div>
+                  <div class="asg-title">{{ a.title }}</div>
+
+                  {% if a.due %}
+                    <div class="asg-due">
+                      Due {{ a.due|nice_date }}
+                      {% if a.due_time %} at {{ a.due_time|nice_time }}{% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="course-empty">
+            No past assignments.
+          </div>
+        {% endif %}
+
       {% else %}
-      <div class="course-empty">{{ "No assignments are available yet. Check back later." if is_student else "No assignments yet." }}</div>
+
+        {#
+          PURPOSE: Preserve the instructor's existing assignment list.
+          REASON: Only the student Assignments page is being reorganized.
+        #}
+        {% if course.assignments %}
+          <div class="asg-list">
+            {% for a in course.assignments %}
+              <a class="asg-row"
+                 href="/instructor?class={{ course.id|urlencode }}&view=assignments&assignment={{ a.id|urlencode }}">
+                <div>
+                  <div class="asg-title">{{ a.title }}</div>
+
+                  {% if a.due %}
+                    <div class="asg-due">
+                      Due {{ a.due|nice_date }}
+                      {% if a.due_time %} at {{ a.due_time|nice_time }}{% endif %}
+                    </div>
+                  {% endif %}
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="course-empty">
+            No assignments yet.
+          </div>
+        {% endif %}
+
       {% endif %}
+
     </section>
+    {% endif %}
+
+    {#
+      PURPOSE: Keep assignment management JavaScript instructor-only.
+      REASON: Students should see published assignments without
+      receiving the instructor's assignment creation controls.
+    #}
     {% if not is_student %}
     <script>
+
     (function () {
       const CLASS_ID = {{ course.id|tojson }};
       // Field names the backend may use for due data. Adjust if your API differs.
       const DUE_KEYS = ['due', 'due_date', 'due_at'];
     
       const form = document.getElementById('addAsgForm');
+      // PURPOSE: Stop assignment-form setup when the form is not on this page.
+// REASON: Overview no longer displays the instructor assignment form.
+      if (!form) return;
       const btn  = document.getElementById('addAsgBtn');
       const msg  = document.getElementById('addAsgMsg');
       const say  = (t) => { msg.textContent = t; };

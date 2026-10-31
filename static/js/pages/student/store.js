@@ -111,20 +111,71 @@ document.addEventListener('alpine:init', () => {
           fetch('/api/student/active_assignments').then(r => r.json()),
           fetch('/api/student/orphan_sessions').then(r => r.json()).catch(() => ({ sessions: [] }))
         ]);
+
+                // Get all published assignments available to this student.
         const assignments = Array.isArray(assignData) ? assignData : (assignData.assignments || []);
         const hasEnrollments = Array.isArray(assignData) ? false : (assignData.has_enrollments === true);
         const orphanSessions = orphanData.sessions || [];
 
-        this.projects = assignments.map(a => ({
-          id: a.id, name: a.title, class_name: a.class_name || "", class_term: a.class_term || "",
-          chatHistory: [], sessionActive: false, assignment_id: a.id, kind: 'assignment',
-          key: a.id, threads: [], activeSessionId: null, deep_coding_enabled: !!a.deep_coding_enabled,
-          image_chat_enabled: !!a.image_chat_enabled
-        }));
-        orphanSessions.forEach(g => this.projects.push({
-          id: g.id, name: g.name, class_name: "", class_term: "", chatHistory: [], sessionActive: false,
-          assignment_id: null, kind: 'custom', key: g.id, threads: [], activeSessionId: null
-        }));
+        // PURPOSE: Check whether the student entered the tutor from a specific course.
+        // REASON: /student?class=COURSE_ID should display only that course's assignments.
+        // A direct visit to /student should continue showing all assignments.
+        const selectedCourseId = new URLSearchParams(window.location.search).get('class');
+
+        // Filter only when a course was selected.
+        // String conversion prevents mismatches between numeric and text IDs.
+        const visibleAssignments = selectedCourseId
+          ? assignments.filter(a => String(a.class_id) === String(selectedCourseId))
+          : assignments;
+
+                // PURPOSE: Determine whether each assignment is current or past.
+        // REASON: Organize the Projects sidebar using the same deadline rules
+        // as the student course Assignments page.
+        const now = new Date();
+
+        this.projects = visibleAssignments.map(a => {
+          let isPast = false;
+
+          if (a.due_date) {
+            // If no due time was provided, the deadline is 11:59 PM.
+            const dueTime = a.due_time || '23:59';
+            const deadline = new Date(`${a.due_date}T${dueTime}`);
+
+            // Assignments with invalid dates remain current.
+            if (!Number.isNaN(deadline.getTime())) {
+              isPast = deadline < now;
+            }
+          }
+
+          return {
+            id: a.id,
+            name: a.title,
+            class_name: a.class_name || "",
+            class_term: a.class_term || "",
+            chatHistory: [],
+            sessionActive: false,
+            assignment_id: a.id,
+            kind: 'assignment',
+            key: a.id,
+            threads: [],
+            activeSessionId: null,
+            deep_coding_enabled: !!a.deep_coding_enabled,
+            image_chat_enabled: !!a.image_chat_enabled,
+
+            // Used only to group assignments in the Projects sidebar.
+            is_past: isPast
+          };
+        });
+
+                // PURPOSE: Show custom conversations only in the general AI Tutor.
+        // REASON: Course-specific tutors should display only their own assignments.
+        // Custom conversations are not deleted; they remain available at /student.
+        if (!selectedCourseId) {
+          orphanSessions.forEach(g => this.projects.push({
+            id: g.id, name: g.name, class_name: "", class_term: "", chatHistory: [], sessionActive: false,
+            assignment_id: null, kind: 'custom', key: g.id, threads: [], activeSessionId: null
+          }));
+        }
 
         if (this.projects.length > 0 && !this.currentProjectId) {
           this.switchProject(this.urlProjectId() || this.resumeProjectId() || this.projects[0].id);

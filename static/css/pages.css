@@ -830,3 +830,416 @@ html.high-contrast .cal-chip {
         padding: 10px 8px;
     }
 }
+
+
+
+/*
+ * LEAFTUTOR COURSE NAVIGATION LAYOUTS
+ *
+ * PURPOSE: Switch between vertical and horizontal course navigation.
+ * REASON: Users can choose Side or Top in Account > Customize
+ * without changing the course page or its functionality.
+ */
+
+/* Default: show vertical navigation and hide horizontal navigation. */
+.course-navigation-side {
+  display: block;
+  width: 230px;
+  flex: 0 0 230px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.course-navigation-top {
+  display: none;
+}
+
+/*
+ * PURPOSE: Allow the vertical sidebar to fill its allocated space.
+ * REASON: The course workspace uses a fixed-width navigation column.
+ */
+.course-navigation-side > .course-sidebar {
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * PURPOSE: Change the course workspace to a vertical stack in Top mode.
+ * REASON: Horizontal navigation must appear above the course content,
+ * not beside it.
+ */
+html[data-course-nav="top"] .course-workspace {
+  flex-direction: column;
+}
+
+/* Hide vertical navigation when Top is selected. */
+html[data-course-nav="top"] .course-navigation-side {
+  display: none;
+}
+
+/* Show horizontal navigation when Top is selected. */
+html[data-course-nav="top"] .course-navigation-top {
+  display: block;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+/*
+ * PURPOSE: Arrange course links horizontally.
+ * REASON: The Top layout should display a navigation row,
+ * with wrapping available on smaller screens.
+ */
+.course-horizontal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: #E1EDE4;
+  color: #174C3C;
+}
+
+.course-horizontal-header span {
+  font-size: 0.85rem;
+}
+
+.course-horizontal-links {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #E1EDE4;
+  border-bottom: 1px solid #C3D8CA;
+}
+
+/* Keep the course content usable beneath the horizontal navigation. */
+html[data-course-nav="top"] .course-workspace-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+
+/* ============================================================
+   STUDENT COURSE NAVIGATION — COLLAPSIBLE SIDE RAIL
+
+   PURPOSE: Keep course navigation compact by default.
+   REASON: Students need maximum space for the AI Tutor.
+
+   These rules target student-course-sidebar only,
+   leaving instructor navigation unchanged.
+   ============================================================ */
+
+/*
+ * PURPOSE: Keep student course navigation fully expanded on Course Overview.
+ * REASON: Students should see their course name and navigation options
+ * before entering the AI Tutor.
+ */
+.course-navigation-side:has(.student-course-sidebar) {
+    width: 230px;
+    flex: 0 0 230px;
+}
+
+.student-course-sidebar {
+    width: 230px;
+    min-width: 0;
+    height: 100%;
+    overflow-x: hidden;
+    transition: width 0.2s ease;
+}
+
+/*
+ * PURPOSE: Use a compact sidebar only on the AI Tutor page.
+ * REASON: Preserve space for tutoring, chat, and coding activities.
+ */
+body.student-page .course-navigation-side:has(.student-course-sidebar) {
+    width: 52px;
+    flex: 0 0 52px;
+}
+
+body.student-page .student-course-sidebar {
+    width: 52px;
+}
+
+/* Allow the student to expand the sidebar while using the AI Tutor. */
+body.student-page .course-navigation-side:has(.student-course-sidebar.is-expanded) {
+    width: 230px;
+    flex-basis: 230px;
+}
+
+body.student-page .student-course-sidebar.is-expanded {
+    width: 230px;
+}
+
+/* Expanded: show the course name and navigation labels. */
+.course-navigation-side:has(.student-course-sidebar.is-expanded) {
+    width: 230px;
+    flex-basis: 230px;
+}
+
+.student-course-sidebar.is-expanded {
+    width: 230px;
+}
+
+/* Keep the toggle button aligned within the narrow rail. */
+.student-course-sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 8px;
+    min-height: 52px;
+    box-sizing: border-box;
+    border-bottom: 1px solid #C3D8CA;
+}
+
+/* Toggle button for expanding or collapsing the navigation. */
+.student-course-toggle {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #174C3C;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.student-course-toggle:hover,
+.student-course-toggle:focus-visible {
+    background: #C3D8CA;
+}
+
+/*
+ * PURPOSE: Hide navigation labels only when the AI Tutor sidebar is collapsed.
+ * REASON: Course Overview should always display its course name and labels.
+ */
+body.student-page .student-course-sidebar:not(.is-expanded) .student-course-label {
+    display: none;
+}
+
+/* Arrange navigation links horizontally: icon + text. */
+.student-course-sidebar .course-sidebar-nav {
+    padding: 8px 4px;
+}
+
+.student-course-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 8px 10px;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+/* Fixed icon width prevents the icons from shifting. */
+.student-course-icon {
+    width: 20px;
+    flex: 0 0 20px;
+    text-align: center;
+    font-size: 20px;
+    line-height: 1;
+}
+
+/*
+ * PURPOSE: Center navigation icons only in the collapsed AI Tutor sidebar.
+ * REASON: Course Overview should retain its normal icon-and-label layout.
+ */
+body.student-page .student-course-sidebar:not(.is-expanded) .student-course-link {
+    justify-content: center;
+    padding: 8px 0;
+}
+
+/*
+ * PURPOSE: Show labels on Course Overview and in the expanded AI Tutor sidebar.
+ * REASON: Labels should disappear only when the tutor navigation is collapsed.
+ */
+.student-course-sidebar .student-course-label {
+    display: inline;
+}
+
+/* Prevent long course names from breaking the layout. */
+.student-course-sidebar-header .student-course-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============================================================
+   AI TUTOR — STUDENT COURSE NAVIGATION LAYOUT
+
+   PURPOSE: Place course navigation beside the Projects sidebar.
+   REASON: Keep the existing AI Tutor chat and editor layout intact.
+   ============================================================ */
+
+/*
+ * The AI Tutor already uses a horizontal .container layout.
+ * Make the course navigation a fixed-width item within it.
+ */
+body.student-page .student-tutor-course-navigation {
+    width: 52px;
+    flex: 0 0 52px;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+/*
+ * When the student expands course navigation, allow its
+ * container to grow to the full 230px width.
+ */
+body.student-page .student-tutor-course-navigation:has(.student-course-sidebar.is-expanded) {
+    width: 230px;
+    flex-basis: 230px;
+}
+
+/*
+ * Keep the navigation sidebar at the same height as the
+ * AI Tutor workspace and prevent unwanted horizontal scrolling.
+ */
+body.student-page .student-tutor-course-navigation > .student-course-sidebar {
+    height: 100%;
+    box-sizing: border-box;
+}
+
+
+/*
+  PURPOSE: Display compact horizontal course navigation in the AI Tutor.
+  REASON: Keep navigation accessible without taking up tutoring space.
+  These rules apply only to the student AI Tutor page.
+*/
+
+.student-tutor-top-navigation {
+  width: 100%;
+  flex: 0 0 auto;
+  background: #E1EDE4;
+}
+
+.student-tutor-top-navigation .course-nav-horizontal {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  box-sizing: border-box;
+}
+
+/* Hide the large course header in compact mode. */
+.student-tutor-top-navigation .course-horizontal-header {
+  display: none;
+}
+
+/* Keep the navigation links in a small horizontal row. */
+.student-tutor-top-navigation .course-horizontal-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Make each navigation link compact. */
+.student-tutor-top-navigation .course-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 0;
+  border-radius: 8px;
+}
+
+
+
+/*
+  PURPOSE: Show the All Courses icon only in compact AI Tutor navigation.
+  REASON: Keep normal course navigation unchanged while providing
+  an accessible return button on the tutoring page.
+*/
+
+/* Hide the compact back button on regular course pages. */
+.course-nav-horizontal .student-tutor-back-link {
+  display: none;
+}
+
+/* Display the back button only on the AI Tutor page. */
+.student-tutor-top-navigation .student-tutor-back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 22px;
+  color: inherit;
+}
+
+/* Match the other navigation buttons when hovered. */
+.student-tutor-top-navigation .student-tutor-back-link:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+
+
+/*
+  PURPOSE: Display SVG icons only in compact AI Tutor navigation.
+  REASON: Normal course pages must retain their text labels.
+*/
+.course-nav-horizontal .student-tutor-nav-icon {
+  display: none;
+}
+
+.student-tutor-top-navigation .student-tutor-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.student-tutor-top-navigation .student-tutor-nav-label {
+  display: none;
+}
+
+/*
+  PURPOSE: Keep the AI Tutor workspace within the visible screen
+  when students select Top course navigation.
+
+  REASON: The compact horizontal navigation takes up 48px.
+  The chat workspace must shrink by the same amount so
+  the message input and bottom of the Projects panel remain visible.
+
+  These rules affect only the AI Tutor page in Top mode.
+*/
+
+/* Arrange compact navigation and tutoring workspace vertically. */
+html[data-course-nav="top"] body.student-page .app-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Reserve exactly 48px for the compact course navigation. */
+html[data-course-nav="top"] body.student-page .student-tutor-top-navigation {
+  height: 48px;
+  min-height: 48px;
+  flex: 0 0 48px;
+  overflow: hidden;
+}
+
+/* Give the AI Tutor the remaining available screen height. */
+html[data-course-nav="top"] body.student-page .app-main > .container {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}

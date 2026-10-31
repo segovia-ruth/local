@@ -1,3 +1,4 @@
+
 {% extends "base.html" %}
 
 {% block title %}Account · LeafTutor{% endblock %}
@@ -10,31 +11,128 @@
 {% block content %}
 <div class="page-scroll">
   <div class="page-inner">
+
+    <!-- Account page heading -->
     <h1 class="page-title">Account</h1>
     <p class="page-sub">Your profile.</p>
 
+    <!-- =====================================================
+         PROFILE SECTION
+         PURPOSE: Display the logged-in user's information.
+         ===================================================== -->
     <section class="panel">
       <div class="acct-head">
-        <div class="acct-avatar" x-text="$store.ui.user.initials">??</div>
+        <div class="acct-avatar"
+             x-text="$store.ui.user.initials">??</div>
+
         <div>
-          <div class="acct-name" x-text="$store.ui.user.name || 'Loading…'">Loading…</div>
-          <div class="acct-email" x-text="$store.ui.user.email"></div>
+          <div class="acct-name"
+               x-text="$store.ui.user.name || 'Loading…'">
+            Loading…
+          </div>
+
+          <div class="acct-email"
+               x-text="$store.ui.user.email"></div>
         </div>
       </div>
     </section>
 
+    <!-- =====================================================
+         SETTINGS SECTION
+         PURPOSE: Provide access to appearance and
+         accessibility preferences from Account.
+         ===================================================== -->
+    <section class="panel">
+      <h2>Settings</h2>
 
+      <div class="acct-row">
+        <div>
+          <div class="acct-row-label">
+            Appearance &amp; Accessibility
+          </div>
 
+          <div class="acct-row-hint">
+            Customize your theme, text size, background,
+            accessibility, and course navigation layout.
+          </div>
+        </div>
+
+        <!-- Opens the existing customization panel. -->
+        <button type="button" id="accountSettingsButton">
+          Customize
+        </button>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         SESSION SECTION
+         PURPOSE: Allow the user to log out.
+         ===================================================== -->
     <section class="panel">
       <h2>Session</h2>
+
       <div class="acct-row">
         <div>
           <div class="acct-row-label">Sign out</div>
-          <div class="acct-row-hint">End your session on this device.</div>
+
+          <div class="acct-row-hint">
+            End your session on this device.
+          </div>
         </div>
-        <a class="acct-logout" href="/logout">Log out</a>
+
+        <a class="acct-logout" href="/logout">
+          Log out
+        </a>
       </div>
     </section>
+
   </div>
 </div>
+
+<!-- =====================================================
+     ACCOUNT SETTINGS BUTTON
+     PURPOSE: Open the existing customization panel.
+     REASON: Reuse the current settings functionality
+     without duplicating customization controls.
+
+     stopPropagation prevents the existing outside-click
+     handler from immediately closing the panel.
+     ===================================================== -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+
+    const settingsButton =
+      document.getElementById('accountSettingsButton');
+
+    const customizationPanel =
+      document.getElementById('customizationPanel');
+
+    if (!settingsButton || !customizationPanel) {
+      console.error('Account customization controls not found.');
+      return;
+    }
+
+    settingsButton.addEventListener('click', function (event) {
+
+      // Prevent the global outside-click handler from
+      // immediately closing the customization panel.
+      event.stopPropagation();
+
+      // Display the existing customization panel.
+      customizationPanel.removeAttribute('hidden');
+
+      // Move keyboard focus into the panel.
+      const firstControl = customizationPanel.querySelector(
+        'select, button, input'
+      );
+
+      if (firstControl) {
+        firstControl.focus();
+      }
+
+    });
+
+  });
+</script>
+
 {% endblock %}

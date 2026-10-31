@@ -26,8 +26,10 @@ ${A}#rosterAssignSplit.lt-split { height: 100%; }
 ${A}#rosterSection {
   display: grid; height: 100%; min-height: 0; padding: 0; overflow: visible;
   background: transparent; border: 0; box-shadow: none; gap: 12px;
+  /* PURPOSE: Give the roster and audit their own side-by-side columns.
+   REASON: Teaching Assistants will have a separate navigation view. */
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
-  grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 ${A}#rosterSection > .roster-tab-bar,
 ${A}#rosterSection > .roster-collapsed-label { display: none !important; }
@@ -40,9 +42,14 @@ ${A}#assistantTabPanel {
   background: var(--lt-bg-container); border: 1px solid var(--lt-border-secondary);
   border-top-width: 3px; border-radius: 12px;
 }
-${A}#rosterTabPanel    { grid-column: 1; grid-row: 1 / span 2; border-top-color: var(--lt-primary); }
-${A}#auditTabPanel     { grid-column: 2; grid-row: 1;          border-top-color: var(--lt-warning, #faad14); }
-${A}#assistantTabPanel { grid-column: 2; grid-row: 2;          border-top-color: var(--lt-success, #52c41a); }
+  
+/* PURPOSE: Position roster and audit in separate columns.
+   REASON: Assistant management no longer belongs in this layout. */
+${A}#rosterTabPanel { grid-column: 1; grid-row: 1; border-top-color: var(--lt-primary); }
+${A}#auditTabPanel  { grid-column: 2; grid-row: 1; border-top-color: var(--lt-warning, #faad14); }
+
+/* Hide Teaching Assistants specifically from Roster & Audit. */
+${A}#assistantTabPanel { display: none !important; }         border-top-color: var(--lt-success, #52c41a); }
 
 /* Panel titles (the tab bar that used to name them is gone) */
 ${A}#rosterTabPanel::before,

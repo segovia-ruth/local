@@ -3,6 +3,14 @@
 {% block body_class %}student-page{% endblock %}
 
 {% block extra_head %}
+
+<!--
+  PURPOSE: Load the shared course navigation styles in the AI Tutor.
+  REASON: The student course sidebar uses rules defined in pages.css.
+  Existing chat and Projects sidebar styles remain available.
+-->
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+
 <!-- Syntax highlighting for code shown in chat (editor-style) -->
 <link rel="stylesheet" href="{{ static_v('vendor/highlight/atom-one-dark.min.css') }}">
 <script src="{{ static_v('vendor/highlight/highlight.min.js') }}"></script>
@@ -16,8 +24,46 @@
 
 
 {% block content %}
+
+  <!--
+    PURPOSE: Place Top course navigation above the AI Tutor workspace.
+    REASON: Prevent it from occupying a column inside the chat layout.
+    This navigation will be displayed in compact mode on this page.
+  -->
+  {% if course is defined and course and not anon %}
+  <div class="course-navigation-top student-tutor-top-navigation">
+    {% include "course_navbar/crs_navbar_horizontal.html" %}
+  </div>
+  {% endif %}
+
+  <!--
+    PURPOSE: Initialize the existing student chat and Projects sidebar.
+    REASON: Preserve the existing chat layout and functionality.
+  -->
   <div class="container" x-init="$store.chat.init()">
+
+    <!--
+  PURPOSE: Diagnose whether Flask supplied the selected course.
+  REASON: The sidebar only renders when course information exists.
+  Remove this diagnostic after testing.
+-->
+<!-- COURSE DEBUG: defined={{ course is defined }}, id={{ course.id if course is defined and course else 'NONE' }}, anon={{ anon }} -->
+
+    {% if course is defined and course and not anon %}
+
+        <!--
+      PURPOSE: Keep the existing vertical course navigation available.
+      REASON: Students using Side navigation should retain the
+      working collapsible course sidebar.
+    -->
+    <div class="course-navigation-side student-tutor-course-navigation">
+      {% include "course_navbar/crs_navbar_vertical.html" %}
+    </div>
+
+    {% endif %}
+
     {% if not anon %}
+
     <!-- Left Sidebar -->
     <div class="sidebar" id="sidebar" :class="{ collapsed: $store.chat.sidebarCollapsed }">
       <div class="sidebar-header">

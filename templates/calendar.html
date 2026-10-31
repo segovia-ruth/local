@@ -36,13 +36,41 @@
   .cal-cell.selected { outline: 2px solid var(--lt-text-tertiary); outline-offset: -2px; }
   .cal-num { align-self: flex-end; font-size: 12px; padding: 0 4px; }
 
-  /* ── event bars (icon, short time, title) ── */
-  .cal-chip {
-    display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px;
-    font-size: 12px; line-height: 1.3; white-space: nowrap; overflow: hidden;
-    color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
-    border-left: 3px solid var(--c);
-  }
+  /*
+  PURPOSE: Display assignment status using shades of its course color.
+  REASON: Published assignments should appear darker and drafts lighter,
+  while preserving each instructor's selected course colors.
+*/
+.cal-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  border-left: 3px solid var(--c);
+
+  /* Default appearance for non-assignment calendar events. */
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+
+/* Published assignments: stronger, darker course color. */
+.cal-chip.is-published {
+  background: color-mix(in srgb, var(--c) 85%, black);
+  color: white;
+  border-left-color: var(--c);
+}
+
+/* Draft assignments: softer, lighter course color. */
+.cal-chip.is-draft {
+  background: color-mix(in srgb, var(--c) 22%, white);
+  color: color-mix(in srgb, var(--c) 65%, black);
+  border-left-color: var(--c);
+}
   .cal-chip-time { opacity: .8; flex: none; }
   .cal-chip-text { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
   .cal-chip.done .cal-chip-text { text-decoration: line-through; opacity: .7; }
@@ -118,8 +146,20 @@
                   @click="selected = cell.iso">
             <span class="cal-num" x-text="cell.day"></span>
             <template x-for="(e, i) in cell.events.slice(0, 3)" :key="i">
-              <span class="cal-chip" :class="[ 'type-' + (e.type || 'event'), { done: e.done } ]"
-                    :style="{ '--c': colorFor(e.course, e.color) }" :title="e.title">
+              <!--
+  PURPOSE: Apply published or draft styling to calendar assignments.
+  REASON: Each assignment keeps its course color, while its
+  publication status determines whether it appears dark or light.
+-->
+              <span class="cal-chip"
+                :class="
+                  'type-' + (e.type || 'event') +
+                  (e.done ? ' done' : '') +
+                  (e.type === 'assignment' && e.published === true ? ' is-published' : '') +
+                  (e.type === 'assignment' && e.published === false ? ' is-draft' : '')
+                "
+                  :style="{ '--c': colorFor(e.course, e.color) }"
+                  :title="e.title">
                 <span class="cal-chip-icon" aria-hidden="true" x-text="iconFor(e.type)"></span>
                 <span class="cal-chip-time" x-text="shortTime(e.time)"></span>
                 <span class="cal-chip-text" x-text="e.title"></span>

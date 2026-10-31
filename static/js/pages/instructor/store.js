@@ -140,8 +140,14 @@ document.addEventListener('alpine:init', () => {
 
     // ── bootstrap ─────────────────────────────────────────────────────────────────────
     init() {
-      // TA mode: no roster tab (default to audit) and exactly one course — select it.
-      if (this.isTA) this.rosterTab = 'audit';
+  // PURPOSE: Initialize the correct management section.
+  // REASON: The Teaching Assistants navigation needs to load
+  // existing assistant records without using the Roster & Audit tab.
+      if (this.isTA) {
+        this.rosterTab = 'audit';
+      } else if (new URLSearchParams(location.search).get('view') === 'tas') {
+        this.rosterTab = 'assistant';
+    }
       this.loadClasses().then(() => {
         this.restoreLastAccessed();
         if (this.isTA && !this.currentClassId && this.classes.length) {

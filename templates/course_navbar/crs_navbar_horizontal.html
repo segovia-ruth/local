@@ -1,0 +1,117 @@
+
+{#
+  PURPOSE: Display course navigation horizontally.
+  REASON: Users who select Top navigation in Customize
+  should see their course sections across the top
+  instead of in the left sidebar.
+
+  This component uses the same routes as vertical navigation.
+#}
+
+<div class="course-nav-horizontal"
+     aria-label="Course navigation">
+
+  
+<!--
+  PURPOSE: Provide the same return navigation as Side mode.
+  REASON: The All Courses link must remain accessible
+  from every course section.
+-->
+
+        {#
+      PURPOSE: Provide a compact All Courses button in the AI Tutor.
+      REASON: The full course header is hidden in compact mode,
+      but students still need a way to return to their courses.
+      The button remains hidden on normal course pages.
+    #}
+    <a href="/courses"
+       class="student-tutor-back-link"
+       title="All Courses"
+       aria-label="Go back to All Courses">
+      <span aria-hidden="true">←</span>
+    </a>
+
+    <div class="course-horizontal-header">
+        <a href="/courses" class="course-back">← All Courses</a>
+        <strong>{{ course.name }}</strong>
+        <span>{{ course.term or "Course workspace" }}</span>
+    </div>
+
+
+   {#
+    PURPOSE: Identify which course section is selected.
+    REASON: Overview and Assignments share the /courses/ route,
+    so the view parameter determines which tab is highlighted.
+  #}
+  {% set current_view = request.args.get('view', '') %}
+  {% set on_overview = request.path.startswith('/courses/') and current_view != 'assignments' %}
+
+  <nav class="course-horizontal-links" aria-label="Course sections">
+
+    <!--
+  PURPOSE: Provide an Overview icon for compact navigation.
+  REASON: SVG icons render reliably without special fonts.
+  The normal course page will continue displaying the text label.
+-->
+<a class="course-nav-link{% if on_overview %} active{% endif %}" href="/courses/{{ course.id|urlencode }}"
+    title="Overview" aria-label="Overview">
+    <span class="student-tutor-nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+            <path d="M3 9h18M9 9v12"></path>
+        </svg>
+    </span>
+    <span class="student-tutor-nav-label">Overview</span>
+</a>
+
+    
+    {#
+      PURPOSE: Send students to the AI Tutor while keeping
+      instructor assignment management unchanged.
+      REASON: Students should not access instructor-only pages.
+    #}
+
+    {% if is_student %}
+
+    <!--
+  PURPOSE: Provide an Assignments icon for compact navigation.
+  REASON: Keep assignment navigation accessible in the AI Tutor.
+-->
+<a class="course-nav-link{% if request.path.startswith('/courses/') and current_view == 'assignments' %} active{% endif %}"
+    href="/courses/{{ course.id|urlencode }}?view=assignments" title="Assignments" aria-label="Assignments">
+    <span class="student-tutor-nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="3" width="16" height="18" rx="2"></rect>
+            <path d="M8 8h8M8 12h8M8 16h5"></path>
+        </svg>
+    </span>
+    <span class="student-tutor-nav-label">Assignments</span>
+</a>
+
+    {% else %}
+
+    <!-- Instructor Assignments management. -->
+    <a class="course-nav-link{% if request.path == '/instructor' and current_view == 'assignments' %} active{% endif %}"
+       href="/instructor?class={{ course.id|urlencode }}&view=assignments">
+      Assignments
+    </a>
+
+    <!-- Instructor-only roster. -->
+    <a class="course-nav-link{% if request.path == '/instructor' and current_view == 'roster' %} active{% endif %}"
+       href="/instructor?class={{ course.id|urlencode }}&view=roster">
+     Roster &amp; Audit
+    </a>
+
+    <!-- Instructor-only teaching assistants. -->
+    <a class="course-nav-link{% if request.path == '/instructor' and current_view == 'tas' %} active{% endif %}"
+       href="/instructor?class={{ course.id|urlencode }}&view=tas">
+      Teaching Assistants
+    </a>
+
+    {% endif %}
+
+
+  </nav>
+</div>

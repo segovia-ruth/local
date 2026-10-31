@@ -14,31 +14,38 @@
   </div>
 
   <nav class="course-sidebar-nav" aria-label="Course sections">
+{#
+  PURPOSE: Identify the current course section.
+  REASON: The active link needs a CSS class so it can be highlighted.
 
+  The URL determines which page is selected.
+#}
+{% set current_view = request.args.get('view', '') %}
+{% set on_overview = request.path.startswith('/courses/') %}
     <!-- Course overview. -->
-    <a class="course-nav-link"
+    <a class="course-nav-link{% if on_overview %} active{% endif %}"
        href="/courses/{{ course.id|urlencode }}">
       Overview
     </a>
 
     <!-- Assignment management. -->
-    <a class="course-nav-link"
-       href="/instructor?class={{ course.id|urlencode }}&view=assignments">
-      Assignments
+    <a class="course-nav-link{% if request.path == '/instructor' and current_view == 'assignments' %} active{% endif %}"
+    href="/instructor?class={{ course.id|urlencode }}&view=assignments">
+    Assignments
     </a>
 
     {% if not is_student %}
 
     <!-- Instructor-only roster management. -->
-    <a class="course-nav-link"
-       href="/instructor?class={{ course.id|urlencode }}&view=roster">
-      Students &amp; Roster
+    <a class="course-nav-link{% if request.path == '/instructor' and current_view == 'roster' %} active{% endif %}"
+    href="/instructor?class={{ course.id|urlencode }}&view=roster">
+    Students &amp; Roster
     </a>
 
     <!-- Instructor-only teaching assistant management. -->
-    <a class="course-nav-link"
-       href="/instructor?class={{ course.id|urlencode }}&view=tas">
-      Teaching Assistants
+    <a class="course-nav-link{% if request.path == '/instructor' and current_view == 'tas' %} active{% endif %}"
+    href="/instructor?class={{ course.id|urlencode }}&view=tas">
+    Teaching Assistants
     </a>
 
     {% else %}
