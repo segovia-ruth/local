@@ -18,6 +18,12 @@
 <link rel="stylesheet" href="{{ static_v('css/qr.css') }}">
 <script src="{{ static_v('vendor/qrcode/qrcode.min.js') }}"></script>
 <script src="{{ static_v('js/core/qr.js') }}"></script>
+<style>
+  .section-header { flex-wrap: wrap; gap: 8px; }
+  .section-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .anon-alias-input { min-width: 140px; font-size: 13px; padding: 6px 8px; border: 1px solid var(--lt-border, #d1d5db);
+                      border-radius: 6px; font-family: inherit; background: var(--lt-bg-elevated, #fff); color: var(--lt-text, inherit); }
+</style>
 {% endblock %}
 
 {% block navbar_subtitle %}Your Smart Coding Assistant{% endblock %}
@@ -63,7 +69,6 @@
     {% endif %}
 
     {% if not anon %}
-
     <!-- Left Sidebar -->
     <div class="sidebar" id="sidebar" :class="{ collapsed: $store.chat.sidebarCollapsed }">
       <div class="sidebar-header">
@@ -104,67 +109,69 @@
                @dragleave="$store.chat.onDragLeave($event)" @drop="$store.chat.onDrop($event)">
         <div class="section-header">
           <h2>Chat{% if anon and anon_assignment_title %} ({{ anon_assignment_title }}){% endif %}</h2>
-          {% if not anon %}
           <div class="section-controls">
+
+            {% if anon %}
+            <!-- Anonymous: optional chat name (frozen once the instructor closes the chat) -->
+            <input id="anonAlias" class="anon-alias-input"
+                   :placeholder="$store.chat.sessionClosed ? 'Chat name (closed)' : 'Name this chat (optional)'"
+                   :disabled="$store.chat.sessionClosed"
+                   :title="$store.chat.sessionClosed ? 'This conversation is closed by the instructor (view only).' : ''"
+                   x-init="$store.chat.anonAlias = {{ anon_alias|tojson|forceescape }}" x-model="$store.chat.anonAlias"
+                   @blur="$store.chat.anonSaveAlias()" @keydown.enter.prevent="$event.target.blur()">
+            <button class="clear-btn" @click="$store.chat.anonBookmark()"
+                    title="Save this chat to your browser's Favourites/Bookmarks so you can reopen it later"><span>🔖 Bookmark</span></button>
+            <button class="clear-btn" @click="$store.chat.anonCopyLink()" title="Copy this chat's link"><span>🔗 Copy link</span></button>
+            {% else %}
+            <button class="clear-btn" @click="$store.chat.bookmarkChat()"
+                    title="Bookmark this exact chat so you can reopen it later"><span>🔖 Bookmark</span></button>
+            <button class="clear-btn" @click="$store.chat.copyChatLink()"
+                    title="Copy a link that reopens this chat (you will need to sign in)"><span>🔗 Copy link</span></button>
+            {% endif %}
+
             {% if feature_deep_coding %}
-            <button x-show="$store.chat.canDeepCode" @click="$store.chat.openDeepCoding()" class="clear-btn"
+            <button {% if not anon %}x-show="$store.chat.canDeepCode"{% endif %}
+                    @click="$store.chat.openDeepCoding()" class="clear-btn"
                     aria-label="Open Deep Coding IDE"
                     title="Switch to the Deep Coding IDE — this conversation will open there from now on">
               <span>&lt;/&gt; Deep Coding</span>
             </button>
             {% endif %}
+
             <button @click="$store.chat.flagHelp()" class="clear-btn" aria-label="Ask my instructor for help"
+                    {% if anon %}x-show="!$store.chat.sessionClosed"{% endif %}
                     title="Still stuck? Flag this chat for your instructor — they'll see the conversation and what you tried">
               <span x-text="$store.chat.helpFlagged ? '✓ Instructor notified' : '🙋 Instructor help'"></span>
             </button>
+
+            {% if anon %}
+            <button class="clear-btn" @click="$store.chat.anonNewChat()"
+                    :disabled="$store.chat.anon && $store.chat.anon.view_only"
+                    :title="($store.chat.anon && $store.chat.anon.view_only) ? 'This link is view-only — new chats cannot be started' : 'Start a new chat'">
+              <span>+ New chat</span>
+            </button>
+            <button type="button" class="clear-btn" aria-label="Show a QR code that opens this chat on a phone"
+                    title="Show a QR code that opens this chat on a phone"
+                    @mouseenter="LT.qr.pop($el, $store.chat.anon.share_url, 'Scan to continue this chat on your phone')"
+                    @mouseleave="LT.qr.unpop()"
+                    @click="LT.qr.show($store.chat.anon.share_url, 'Continue this chat on your phone', 'No login needed — scanning opens this same conversation.')">
+              <span>📱 QR</span>
+            </button>
+            {% else %}
             <button @click="$store.chat.startNewThread()" class="clear-btn" aria-label="Start a new thread" title="Start a new thread">
               <span>+ New thread</span>
             </button>
-            <!-- QR to continue on a phone: hover = quick preview, click = large overlay.
-                 Logged-in chats need the student's username/password on the phone. -->
-            <button type="button" class="clear-btn" aria-label="Show a QR code to open LeafTutor on your phone"
-                    title="Open LeafTutor on your phone"
-                    @mouseenter="LT.qr.pop($el, location.origin + '/student', 'Scan to open LeafTutor on your phone')"
+            <button type="button" class="clear-btn" aria-label="Show a QR code to open this chat on your phone"
+                    title="Open this chat on your phone"
+                    @mouseenter="LT.qr.pop($el, $store.chat.chatLink(), 'Scan to open this chat on your phone')"
                     @mouseleave="LT.qr.unpop()"
-                    @click="LT.qr.show(location.origin + '/student', 'Open LeafTutor on your phone', 'Scan with your phone camera, then sign in with your username and password to pick up your chats.')">
+                    @click="LT.qr.show($store.chat.chatLink(), 'Open this chat on your phone', 'Scan with your phone camera, then sign in with your username and password to pick up this chat.')">
               <span>📱 QR</span>
             </button>
-          </div>
-          {% endif %}
-        </div>
+            {% endif %}
 
-        {% if anon %}
-        <!-- Anonymous chat top bar: alias, traceable link (copy/favourite), new chat -->
-        <div class="anon-topbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb;">
-          <!-- a closed chat is frozen: its name is what the instructor saw when they closed it -->
-          <input id="anonAlias"
-                 :placeholder="$store.chat.sessionClosed ? 'Chat name (closed — cannot be changed)' : 'Name this chat (optional)'"
-                 :disabled="$store.chat.sessionClosed"
-                 :title="$store.chat.sessionClosed ? 'This conversation is closed by the instructor (view only).' : ''"
-                 x-init="$store.chat.anonAlias = {{ anon_alias|tojson|forceescape }}" x-model="$store.chat.anonAlias"
-                 @blur="$store.chat.anonSaveAlias()" @keydown.enter.prevent="$event.target.blur()"
-                 style="flex:1;min-width:150px;font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;">
-          <button class="btn small" @click="$store.chat.anonBookmark()" title="Save this chat to your browser's Favourites/Bookmarks so you can reopen it later">🔖 Bookmark</button>
-          <button class="btn small" @click="$store.chat.anonCopyLink()" title="Copy this chat's link">🔗 Copy link</button>
-          <!-- QR of this chat's traceable link: scanning continues the SAME conversation
-               on a phone, no login needed (hover = preview, click = large overlay). -->
-          <button class="btn small" type="button" title="Show a QR code that opens this chat on a phone"
-                  @mouseenter="LT.qr.pop($el, $store.chat.anon.share_url, 'Scan to continue this chat on your phone')"
-                  @mouseleave="LT.qr.unpop()"
-                  @click="LT.qr.show($store.chat.anon.share_url, 'Continue this chat on your phone', 'No login needed — scanning opens this same conversation.')">📱 QR</button>
-          {% if feature_deep_coding %}
-          <button class="btn small" @click="$store.chat.openDeepCoding()"
-                  title="Switch to the Deep Coding IDE — this chat will open there from now on">&lt;/&gt; Deep Coding</button>
-          {% endif %}
-          <!-- escalation is off on a closed chat (the server rejects it too) -->
-          <button class="btn small" @click="$store.chat.flagHelp()" x-show="!$store.chat.sessionClosed"
-                  title="Still stuck? Flag this chat for your instructor — they'll see the conversation and what you tried"
-                  x-text="$store.chat.helpFlagged ? '✓ Instructor notified' : '🙋 Instructor help'"></button>
-          <button class="btn small" @click="$store.chat.anonNewChat()"
-                  :disabled="$store.chat.anon && $store.chat.anon.view_only"
-                  :title="($store.chat.anon && $store.chat.anon.view_only) ? 'This link is view-only — new chats cannot be started' : 'Start a new chat'">+ New chat</button>
+          </div>
         </div>
-        {% endif %}
 
         <!-- Orphan conversation title — shown only for custom (no-assignment) sessions -->
         <div id="orphanTitleBar" class="orphan-title-bar" x-show="$store.chat.isCustomProject" x-cloak style="display:block;">
@@ -208,6 +215,24 @@
                   </button>
                 </template>
               </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Assignment PDFs the instructor uploaded (read-only, opens in a new tab) -->
+        <div class="session-files-bar" style="display:flex;" x-cloak
+             x-data="{ pdfs: [], async load(id) {
+                        this.pdfs = [];
+                        if (!id) return;
+                        try { const r = await fetch('/api/student/assignment_pdfs?assignment_id=' + encodeURIComponent(id));
+                              const d = await r.json(); if (r.ok) this.pdfs = d.files || []; } catch (e) {} } }"
+             x-effect="load($store.chat.currentProjectId)" x-show="pdfs.length">
+          <span class="session-files-label">Assignment PDF</span>
+          <div class="session-files-list">
+            <template x-for="f in pdfs" :key="f.id">
+              <a class="session-file-chip" :href="f.url" target="_blank" rel="noopener" :title="'Open ' + f.name + ' in a new tab'">
+                <span class="sfc-icon">📕</span><span class="sfc-name" x-text="f.name"></span>
+              </a>
             </template>
           </div>
         </div>
@@ -549,6 +574,47 @@
      first visit, the most recent session of their newest assignment. Consumed by
      student/store.js loadProjects(). */
   window.LAST_SESSION = {{ initial_session|tojson }};
+</script>
+{% endif %}
+
+{% if not anon %}
+<script>
+  /* Logged-in chat bar: rename / bookmark / copy-link for the open thread. */
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('chatBar', () => ({
+      name: '',
+      get sid() { const p = this.$store.chat.currentProject; return p ? (p.activeSessionId || '') : ''; },
+      get link() { return location.origin + '/student?session=' + encodeURIComponent(this.sid); },
+      thread() { const p = this.$store.chat.currentProject; return p && (p.threads || []).find(t => t.session_id === this.sid); },
+      load() { const t = this.thread(); this.name = (t && t.name) || ''; },
+      async save() {
+        const t = this.thread(), name = (this.name || '').trim();
+        if (!t || this.$store.chat.sessionClosed || name === (t.name || '')) return;
+        try {
+          const r = await fetch('/api/student/rename_thread', { method: 'POST',
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: this.sid, name }) });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok && d.ok) { t.name = d.name; this.name = d.name; }
+          else showNotification(d.error || 'Could not rename this chat', true);
+        } catch (e) { showNotification('Network error', true); }
+      },
+      bookmark() {
+        const title = document.title || 'LeafTutor chat';
+        try { history.replaceState(null, '', '/student?session=' + encodeURIComponent(this.sid)); } catch (e) {}
+        try {
+          if (window.external && typeof window.external.AddFavorite === 'function') { window.external.AddFavorite(this.link, title); return; }
+        } catch (e) {}
+        const mac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || '');
+        showNotification((mac ? 'Press ⌘D' : 'Press Ctrl+D') + ' to add this chat to your favourites');
+      },
+      copy() {
+        const url = this.link;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(() => showNotification('Chat link copied'), () => window.prompt('Copy this chat link:', url));
+        } else { window.prompt('Copy this chat link:', url); }
+      },
+    }));
+  });
 </script>
 {% endif %}
 

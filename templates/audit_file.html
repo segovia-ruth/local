@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>File Viewer — LeafTutor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/highlight/atom-one-dark.min.css') }}">
+  <script src="{{ url_for('static', filename='vendor/highlight/highlight.min.js') }}"></script>
+  <style>
+    :root { --green:var(--lt-primary); --line:var(--lt-border-secondary); --muted:var(--lt-text-tertiary); }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: var(--lt-font); color:var(--lt-text); background:var(--lt-bg-layout); }
+    header {
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px 18px; background:var(--lt-bg-container); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5;
+    }
+    .file-title { font-size:15px; font-weight:700; word-break:break-all; }
+    .lang-badge {
+      display:inline-block; margin-left:8px; font-size:11px; font-weight:600; text-transform:uppercase;
+      letter-spacing:.05em; color:var(--green); background:var(--lt-primary-bg); border:1px solid var(--lt-primary-border);
+      border-radius:999px; padding:2px 8px; vertical-align:middle;
+    }
+    main { display:grid; grid-template-columns: 1fr; gap:16px; padding:16px 18px; max-width:1100px; margin:0 auto; }
+    @media (min-width: 980px) { main { grid-template-columns: 1.1fr .9fr; align-items:start; } }
+    .panel { background:var(--lt-bg-container); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+    .panel-head { padding:8px 12px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    pre.code-block { margin:0; padding:14px 16px; overflow:auto; max-height:75vh; font-family:'Consolas','Monaco','Courier New',monospace; font-size:12.5px; line-height:1.5; background:#282c34; }
+    pre.code-block code, pre.code-block code.hljs { background:transparent; padding:0; white-space:pre; }
+    .analysis-body { padding:14px 16px; font-size:14px; line-height:1.6; }
+    .analysis-body .code-block { border-radius:8px; margin:8px 0; }
+    .analysis-body code.inline-code { background:var(--lt-fill-secondary); color:var(--lt-text); padding:1px 5px; border-radius:5px; font-family:var(--lt-font-mono); font-size:.92em; }
+    .muted { color:var(--muted); }
+    .empty { color:var(--muted); font-style:italic; padding:14px 16px; }
+    .btn { background:var(--green); color:#fff; border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+    .btn:hover { background:var(--lt-primary-hover); }
+    .btn:disabled { opacity:.6; cursor:default; }
+    .gen-wrap { padding:16px; }
+    .copy-btn { background:transparent; border:1px solid #3a4150; color:#9aa4b2; border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer; }
+    .copy-btn:hover { background:#3a4150; color:#fff; }
+    .code-card { border:1px solid #1f2937; border-radius:8px; overflow:hidden; margin:8px 0; }
+    .code-card .bar { display:flex; align-items:center; justify-content:space-between; padding:4px 10px; background:#21252b; color:#9aa4b2; font-size:11px; }
+    .code-card .lang { text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+  </style>
+</head>
+<body>
+  <header>
+    <div><span id="fileTitle" class="file-title">Loading…</span><span id="langBadge" class="lang-badge" style="display:none;"></span></div>
+    <button class="copy-btn" id="copyFileBtn" style="display:none;">Copy file</button>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-head"><span>File content</span></div>
+      <div id="fileContent"><div class="empty">Loading…</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><span>File analysis</span></div>
+      <div id="analysis"><div class="empty">Loading…</div></div>
+    </section>
+  </main>
+
+  <script>
+    const MID = {{ message_id | tojson }};
+
+    function escapeHtml(t){
+      return String(t == null ? "" : t)
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+    }
+    const HLJS_ALIASES = { py:'python', js:'javascript', ts:'typescript', sh:'bash', 'c++':'cpp', 'c#':'csharp', html:'xml', yml:'yaml' };
+    function highlightInto(codeEl, lang){
+      const text = codeEl.textContent;
+      try{
+        let l = (lang||'').toLowerCase(); if (HLJS_ALIASES[l]) l = HLJS_ALIASES[l];
+        if (window.hljs && l && hljs.getLanguage(l)) { codeEl.className = 'hljs language-'+l; codeEl.innerHTML = hljs.highlight(text, {language:l}).value; }
+        else if (window.hljs) { codeEl.className = 'hljs'; codeEl.innerHTML = hljs.highlightAuto(text).value; }
+      }catch(e){}
+    }
+
+    // Compact renderer for analysis prose with ``` fenced code blocks.
+    function renderProse(text){
+      text = text || "";
+      const fence = /```([\w+#.\-]*)[ \t]*\r?\n?([\s\S]*?)```/g;
+      let out = "", last = 0, m;
+      const prose = (s)=> escapeHtml(s).replace(/`([^`]+)`/g,'<code class="inline-code">$1</code>').replace(/\n/g,"<br>");
+      while ((m = fence.exec(text)) !== null){
+        if (m.index > last) out += prose(text.slice(last, m.index).replace(/^\n+|\n+$/g,''));
+        const lang = (m[1]||'').toLowerCase();
+        out += '<div class="code-card"><div class="bar"><span class="lang">'+escapeHtml(lang||'code')+'</span></div>'
+             + '<pre class="code-block"><code class="'+(lang?('language-'+escapeHtml(lang)):'')+'">'+escapeHtml(m[2].replace(/\n$/,''))+'</code></pre></div>';
+        last = fence.lastIndex;
+      }
+      if (last < text.length) out += prose((last>0? text.slice(last).replace(/^\n+/,'') : text.slice(last)));
+      return out;
+    }
+    function highlightAllIn(container){
+      container.querySelectorAll('pre.code-block code').forEach(c=>{
+        const cm = c.className.match(/language-([\w+#.\-]+)/);
+        highlightInto(c, cm ? cm[1] : '');
+      });
+    }
+
+    function showError(msg){
+      document.getElementById('fileTitle').textContent = "Error";
+      document.getElementById('fileContent').innerHTML = '<div class="empty">'+escapeHtml(msg)+'</div>';
+      document.getElementById('analysis').innerHTML = '';
+    }
+
+    function renderAnalysis(d){
+      const box = document.getElementById('analysis');
+      let html = "";
+      if (d.chat_response) {
+        html += '<div class="panel-head" style="border-top:0;"><span>Tutor response in the conversation</span></div>';
+        html += '<div class="analysis-body">' + renderProse(d.chat_response) + '</div>';
+      }
+      if (d.analysis) {
+        html += '<div class="panel-head"><span>Instructor analysis</span></div>';
+        html += '<div class="analysis-body">' + renderProse(d.analysis) + '</div>';
+      }
+      if (!d.chat_response && !d.analysis) {
+        html += '<div class="gen-wrap"><p class="muted" style="margin-top:0;">No analysis exists for this file yet. Generate an instructor-only analysis (it will be saved separately and will not appear in the student\'s conversation).</p>'
+              + '<button class="btn" id="genBtn">Generate analysis</button></div>';
+      }
+      box.innerHTML = html;
+      highlightAllIn(box);
+      const genBtn = document.getElementById('genBtn');
+      if (genBtn) genBtn.onclick = generateAnalysis;
+    }
+
+    function generateAnalysis(){
+      const btn = document.getElementById('genBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+      fetch(`/api/instructor/audit/file/${MID}/generate`, { method:'POST' })
+        .then(r => r.json())
+        .then(d => {
+          if (d.error) { if (btn){ btn.disabled=false; btn.textContent='Generate analysis'; } alert(d.error); return; }
+          const box = document.getElementById('analysis');
+          box.innerHTML = '<div class="panel-head" style="border-top:0;"><span>Instructor analysis</span></div>'
+                        + '<div class="analysis-body">' + renderProse(d.analysis) + '</div>';
+          highlightAllIn(box);
+        })
+        .catch(() => { if (btn){ btn.disabled=false; btn.textContent='Generate analysis'; } alert('Generation failed'); });
+    }
+
+    fetch(`/api/instructor/audit/file/${MID}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) { showError(d.error); return; }
+        document.title = d.filename + " — LeafTutor";
+        document.getElementById('fileTitle').textContent = d.filename;
+        if (d.language) {
+          const b = document.getElementById('langBadge'); b.textContent = d.language; b.style.display = '';
+        }
+        const fc = document.getElementById('fileContent');
+        fc.innerHTML = '<pre class="code-block"><code class="'+(d.language?('language-'+escapeHtml(d.language)):'')+'">'+escapeHtml(d.content)+'</code></pre>';
+        highlightInto(fc.querySelector('code'), d.language);
+
+        const copyBtn = document.getElementById('copyFileBtn');
+        copyBtn.style.display = '';
+        copyBtn.onclick = () => {
+          navigator.clipboard && navigator.clipboard.writeText(d.content).then(()=>{
+            const o = copyBtn.textContent; copyBtn.textContent = 'Copied'; setTimeout(()=>copyBtn.textContent=o, 1200);
+          }).catch(()=>{});
+        };
+
+        renderAnalysis(d);
+      })
+      .catch(() => showError('Could not load file.'));
+  </script>
+</body>
+</html>

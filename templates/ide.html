@@ -1,0 +1,601 @@
+{% extends "base.html" %}
+{% block title %}Deep Coding — LeafTutor{% endblock %}
+{% block body_class %}deep-page{% endblock %}
+{% block navbar_subtitle %}Deep Coding{% if deep_assignment_title %} · {{ deep_assignment_title }}{% endif %}{% endblock %}
+
+{% block extra_head %}
+<!-- Syntax highlighting for the read-only code viewer (Phase 1) + chat code blocks. -->
+<link rel="stylesheet" href="{{ static_v('vendor/highlight/atom-one-dark.min.css') }}">
+<script src="{{ static_v('vendor/highlight/highlight.min.js') }}"></script>
+<link rel="stylesheet" href="{{ static_v('css/deep.css') }}">
+<!-- Assignment PDF preview panel -->
+<link rel="stylesheet" href="{{ static_v('css/deep_pdf.css') }}">
+<!-- Collapse the Files and Tutor panels to a slim rail -->
+<link rel="stylesheet" href="{{ static_v('css/deep_panes.css') }}">
+{% endblock %}
+
+{% block content %}
+  <!-- x-effect: whenever a different file is opened or created, close the previous run's output overlay
+       so the new file's editor is what you see (the Output button at the bottom reopens it) -->
+  <div class="ide-root" x-data x-init="$store.ide.init()"
+       x-effect="$store.ide.center.fileId, ($store.ide.outputOpen = false)">
+
+    <!-- LEFT: file panel (drop files anywhere on it to upload — see store.onDrop) -->
+    <aside class="ide-files" aria-label="Files"
+           @dragenter="$store.ide.onDragEnter($event)" @dragover="$store.ide.onDragOver($event)"
+           @dragleave="$store.ide.onDragLeave($event)" @drop="$store.ide.onDrop($event)">
+      <!-- slim rail: always visible (NotebookLM style). Expand / collapse on top, LeafTutor's own actions below.
+           The actions expand the panel first so the new-file form, upload status and dialogs are visible.
+           The expand button's icon is filled in by panes.js; styling is in deep_panes.css. -->
+      <div class="ide-rail" data-pane="files">
+        <button type="button" class="ide-rail-btn ide-rail-expand" data-pane="files"
+                @click="$store.panes.toggle('files')"></button>
+        <div class="ide-rail-actions" x-show="!$store.ide.sessionClosed" x-cloak>
+          <span class="ide-rail-sep" aria-hidden="true"></span>
+          <button type="button" class="ide-rail-btn" title="New file" aria-label="New file"
+                  @click="$store.panes.show('files'); $store.ide.newFileOpen || $store.ide.toggleNewFile()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6M9 14h6"/></svg></button>
+          <button type="button" class="ide-rail-btn" title="Upload files" aria-label="Upload files"
+                  @click="$store.panes.show('files'); $store.ide.triggerUpload()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M5 20h14"/></svg></button>
+          <button type="button" class="ide-rail-btn" title="Upload a folder (with subfolders)" aria-label="Upload a folder"
+                  @click="$store.panes.show('files'); $store.ide.triggerFolderUpload()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+        </div>
+      </div>
+      <div class="ide-pane-head">
+        <span class="ide-pane-title">Files</span>
+        <!-- a closed (view-only) thread hides every write action; the server rejects them too -->
+        <div class="ide-pane-actions" x-show="!$store.ide.sessionClosed">
+          <button class="ide-icon-btn" type="button" title="New file" @click="$store.ide.toggleNewFile()">+ New</button>
+          <button class="ide-icon-btn" type="button" title="Upload files" @click="$store.ide.triggerUpload()">⤒ Files</button>
+          <button class="ide-icon-btn" type="button" title="Upload a folder (with subfolders)" @click="$store.ide.triggerFolderUpload()">📁 Folder</button>
+        </div>
+      </div>
+
+      <!-- new-file inline form -->
+      <div class="ide-newfile" x-show="$store.ide.newFileOpen" x-cloak>
+        <input id="ideNewName" type="text" x-model="$store.ide.newFileName"
+               placeholder="name.java · main.c · script.py · notes.txt"
+               @keydown.enter.prevent="$store.ide.createFile()" @keydown.escape.prevent="$store.ide.toggleNewFile(false)">
+        <div class="ide-newfile-actions">
+          <button class="ide-icon-btn" type="button" :disabled="$store.ide.busy.create" @click="$store.ide.createFile()">Create</button>
+          <button class="ide-icon-btn" type="button" @click="$store.ide.toggleNewFile(false)">Cancel</button>
+        </div>
+        <div class="ide-newfile-err" x-show="$store.ide.newFileErr" x-text="$store.ide.newFileErr" x-cloak></div>
+      </div>
+
+      <div class="ide-upload-status" x-show="$store.ide.uploadStatus.text" :class="$store.ide.uploadStatus.cls" x-text="$store.ide.uploadStatus.text" x-cloak></div>
+      <input type="file" id="ideFileInput" multiple style="display:none;" @change="$store.ide.onFilePicked($event)">
+      <!-- folder picker: webkitdirectory makes each file carry its webkitRelativePath (folder/sub/file) -->
+      <input type="file" id="ideFolderInput" webkitdirectory directory multiple style="display:none;" @change="$store.ide.onFolderPicked($event)">
+
+      <!-- File explorer: a flat list of folder/file rows (depth-indented) built from rel_dir.
+           Folders toggle their subtree; files open in the editor. -->
+      <div class="ide-file-list">
+        <template x-if="$store.ide.files.length === 0">
+          <div class="ide-empty">No files yet. Create a file, upload files, or drop a folder (with subfolders).</div>
+        </template>
+        <template x-for="row in $store.ide.fileRows" :key="row.key">
+          <div class="ide-tree-item">
+            <!-- folder row -->
+            <template x-if="row.type === 'dir'">
+              <div class="ide-dir-row" :style="`padding-left:${$store.ide.rowIndent(row.depth)}`"
+                   @click="$store.ide.toggleDir(row.path)" :title="row.path">
+                <span class="ide-tree-caret" x-text="row.expanded ? '▾' : '▸'"></span>
+                <span class="ide-file-icon" x-text="row.expanded ? '📂' : '📁'"></span>
+                <span class="ide-file-name" x-text="row.name"></span>
+                <span class="ide-dir-count" x-text="row.count"></span>
+              </div>
+            </template>
+            <!-- file row -->
+            <template x-if="row.type === 'file'">
+              <div class="ide-file-row" :class="{ active: row.file.id === $store.ide.center.fileId, missing: !row.file.available }"
+                   :style="`padding-left:${$store.ide.rowIndent(row.depth)}`"
+                   @click="$store.ide.openFile(row.file.id)" :title="$store.ide.fileTitle(row.file)">
+                <span class="ide-tree-caret"></span>
+                <span class="ide-file-icon" x-text="$store.ide.fileIcon(row.file)"></span>
+                <span class="ide-file-name" x-text="row.file.name"></span>
+                <button class="ide-file-dl" type="button" title="Download" @click.stop="$store.ide.downloadFile(row.file.id)">⤓</button>
+                <button class="ide-file-del" type="button" title="Delete" x-show="!$store.ide.sessionClosed"
+                        @click.stop="$store.ide.deleteFile(row.file.id, row.file.name)">🗑</button>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- storage meter -->
+      <div class="ide-meter">
+        <div class="ide-meter-bar"><div class="ide-meter-fill" :style="`width:${$store.ide.usagePct}%`" :class="{ warn: $store.ide.usagePct >= 90 }"></div></div>
+        <div class="ide-meter-label" x-text="$store.ide.usageLabel"></div>
+      </div>
+
+      <!-- Drag-drop overlay (shown while files are dragged over the panel). pointer-events
+           are off so the drop lands on the panel and bubbles to @drop above. -->
+      <div class="ide-drop-overlay" :class="{ active: $store.ide.dragging }" :aria-hidden="$store.ide.dragging ? 'false' : 'true'">
+        <div class="ide-drop-hint">⤒ Drop files or folders to upload</div>
+      </div>
+    </aside>
+
+    <!-- Draggable divider: resizes the file panel vs. the editor column -->
+    <div class="ide-splitter" role="separator" aria-orientation="vertical" tabindex="0"
+         aria-label="Resize file panel" title="Drag to resize · double-click to reset"
+         @pointerdown="$store.ide.startResize($event)" @dblclick="$store.ide.resetFilesWidth()"
+         @keydown.arrow-left.prevent="$store.ide.nudgeFilesWidth(-24)" @keydown.arrow-right.prevent="$store.ide.nudgeFilesWidth(24)"></div>
+
+    <!-- MIDDLE: code editor (CodeMirror 6) -->
+    <main class="ide-editor" aria-label="Code editor">
+      <div class="ide-pane-head">
+        <span class="ide-pane-title ide-rename-target" x-show="!$store.ide.renaming"
+              :class="{ clickable: $store.ide.center.fileId && !$store.ide.sessionClosed }"
+              @click="$store.ide.center.fileId && !$store.ide.sessionClosed && $store.ide.startRename()"
+              :title="($store.ide.center.fileId && !$store.ide.sessionClosed) ? 'Click to rename' : ''"
+              x-text="$store.ide.center.name || 'No file open'">No file open</span>
+        <span class="ide-rename-wrap" x-show="$store.ide.renaming" x-cloak>
+          <input id="ideRenameInput" class="ide-rename-input" type="text" spellcheck="false" autocomplete="off"
+                 x-model="$store.ide.renameValue"
+                 @keydown.enter.prevent="$store.ide.commitRename()"
+                 @keydown.escape.prevent="$store.ide.cancelRename()"
+                 @blur="$store.ide.commitRename()">
+          <span class="ide-rename-err" x-show="$store.ide.renameErr" x-text="$store.ide.renameErr" x-cloak></span>
+        </span>
+        <div class="ide-pane-actions">
+          <!-- show / hide the side panels -->
+          <button class="ide-icon-btn" type="button" :class="{ active: $store.panes.files }"
+                  :aria-pressed="$store.panes.files" title="Show or hide the Files panel"
+                  @click="$store.panes.toggle('files')">🗂 Files</button>
+          <button class="ide-icon-btn" type="button" :class="{ active: $store.panes.chat }"
+                  :aria-pressed="$store.panes.chat" title="Show or hide the Tutor panel"
+                  @click="$store.panes.toggle('chat')">💬 Tutor</button>
+          <!-- NEW: show / hide the assignment PDF preview (only when the assignment has a PDF) -->
+          <button class="ide-icon-btn" type="button" x-show="$store.pdfp && $store.pdfp.files.length" x-cloak
+                  :class="{ active: $store.pdfp && $store.pdfp.open }"
+                  title="Show or hide the assignment PDF" @click="$store.pdfp.toggle()">📄 Assignment</button>
+          <span class="ide-status" x-show="$store.ide.runStatus" x-text="$store.ide.runStatus" x-cloak></span>
+          <span class="ide-status" x-show="!$store.ide.runStatus && $store.ide.saveStatus" x-text="$store.ide.saveStatus" x-cloak></span>
+          <span class="ide-status" x-show="$store.ide.sessionClosed" x-cloak
+                title="This conversation is closed — the code can be read but not edited or run">🔒 View only</span>
+          <button class="ide-icon-btn" type="button" x-show="$store.ide.center.editable && !$store.ide.sessionClosed" x-cloak
+                  :disabled="$store.ide.busy.save" @click="$store.ide.save()">Save</button>
+          <!-- Run starts the file live in the Shell pane below the editor (F5 / Ctrl+Enter also work).
+               While it is running the button becomes ■ Stop. -->
+          <button class="ide-icon-btn run" type="button" x-show="$store.shell.canRun && !$store.ide.sessionClosed" x-cloak
+                  :disabled="$store.shell.busyStart || $store.ide.busy.save"
+                  @click="$store.shell.running ? $store.shell.stop() : $store.shell.run()"
+                  :title="$store.shell.running ? 'Stop the running program' : 'Run in the shell (F5)'"
+                  x-text="$store.shell.busyStart ? 'Starting…' : ($store.shell.running ? '■ Stop' : '▶ Run')">▶ Run</button>
+          <button class="ide-icon-btn" type="button" x-show="$store.ide.center.fileId" x-cloak title="Download"
+                  @click="$store.ide.downloadFile($store.ide.center.fileId)">⤓</button>
+        </div>
+      </div>
+
+      <!-- stdin for programs that read keyboard input — composed value-by-value in an overlay -->
+      <!-- shown for any open code file, even a brand-new empty one: a new file has no main() yet, so
+           `compilable` is still false at that point and the bar used to stay hidden until a reload -->
+      <div class="ide-stdin-bar"
+           x-show="($store.ide.center.compilable || (/\.(java|c|h|cc|cpp|cxx|hpp|py|js|ts|rb|go|rs|cs|kt|php|swift|sh|r)$/i.test($store.ide.center.name || '') && $store.ide.center.editable)) && !$store.ide.sessionClosed" x-cloak>
+        <label>input</label>
+        <button class="ide-icon-btn" type="button" @click="$store.ide.openStdinEditor()" x-text="$store.ide.stdinSummary">⌨ Add input</button>
+        <label class="ide-auto" title="Before running, if your program needs input and none is set, AI fills in a sample so it can run">
+          <input type="checkbox" x-model="$store.ide.autoStdin"> ✨ auto-fill on run
+        </label>
+      </div>
+
+      <!-- ═══ NEW: Assignment PDF preview (docked above the editor; zoom, fit, page nav, resize) ═══
+           Logic lives in static/js/pages/deep/pdf_preview.js ($store.pdfp). Uses pdf.js when it is
+           vendored under static/vendor/pdfjs/, otherwise the browser's built-in PDF viewer. -->
+      <section class="ide-pdf" x-show="$store.pdfp && $store.pdfp.open && $store.pdfp.files.length" x-cloak
+               :style="`height:${$store.pdfp ? $store.pdfp.height : 320}px`" aria-label="Assignment PDF preview">
+        <div class="ide-pdf-bar">
+          <select class="ide-pdf-select" x-show="$store.pdfp.files.length > 1" x-cloak aria-label="Choose assignment PDF"
+                  @change="$store.pdfp.select($event.target.value)">
+            <template x-for="f in $store.pdfp.files" :key="f.id">
+              <option :value="f.id" :selected="f.id === $store.pdfp.fileId" x-text="f.name"></option>
+            </template>
+          </select>
+          <span class="ide-pdf-name" x-show="$store.pdfp.files.length === 1" x-text="$store.pdfp.currentName"></span>
+
+          <div class="ide-pdf-tools">
+            <!-- page navigation (pdf.js mode only) -->
+            <span class="ide-pdf-group" x-show="$store.pdfp.engine === 'pdfjs' && $store.pdfp.pages" x-cloak>
+              <button class="ide-icon-btn" type="button" title="Previous page" @click="$store.pdfp.gotoPage($store.pdfp.page - 1)">‹</button>
+              <input class="ide-pdf-page-input" type="number" min="1" :max="$store.pdfp.pages" aria-label="Page number"
+                     :value="$store.pdfp.page" @change="$store.pdfp.gotoPage(parseInt($event.target.value, 10))">
+              <span class="ide-pdf-pages-total" x-text="'/ ' + $store.pdfp.pages"></span>
+              <button class="ide-icon-btn" type="button" title="Next page" @click="$store.pdfp.gotoPage($store.pdfp.page + 1)">›</button>
+            </span>
+
+            <!-- zoom -->
+            <span class="ide-pdf-group">
+              <button class="ide-icon-btn" type="button" title="Zoom out (Ctrl + −)" aria-label="Zoom out" @click="$store.pdfp.zoomBy(-1)">−</button>
+              <span class="ide-pdf-zoom" x-text="$store.pdfp.zoomLabel" aria-live="polite"></span>
+              <button class="ide-icon-btn" type="button" title="Zoom in (Ctrl + +)" aria-label="Zoom in" @click="$store.pdfp.zoomBy(1)">+</button>
+              <button class="ide-icon-btn" type="button" :class="{ active: $store.pdfp.fitWidth }" title="Fit to panel width" @click="$store.pdfp.fit()">↔ Fit</button>
+              <button class="ide-icon-btn" type="button" title="Actual size (100%)" @click="$store.pdfp.setZoom(100)">100%</button>
+            </span>
+
+            <a class="ide-icon-btn" :href="$store.pdfp.pdfUrl($store.pdfp.fileId, true)" download title="Download this PDF">⤓</a>
+            <button class="ide-icon-btn" type="button" title="Hide the preview" aria-label="Hide the PDF preview" @click="$store.pdfp.toggle()">✕</button>
+          </div>
+        </div>
+
+        <div class="ide-pdf-body" id="pdfpScroll" tabindex="0"
+             @wheel="$store.pdfp.onWheel($event)" @keydown="$store.pdfp.onKey($event)" @scroll.passive="$store.pdfp.onScroll()">
+          <div class="ide-pdf-status" x-show="$store.pdfp.loading || $store.pdfp.error" x-cloak
+               :class="{ error: $store.pdfp.error }" x-text="$store.pdfp.error || 'Loading PDF…'"></div>
+          <div class="ide-pdf-pages" id="pdfpPages"></div>
+        </div>
+
+        <!-- drag to change the preview height · double-click to reset -->
+        <div class="ide-pdf-resizer" role="separator" aria-orientation="horizontal" tabindex="0"
+             title="Drag to resize · double-click to reset" aria-label="Resize PDF preview"
+             @pointerdown="$store.pdfp.startResize($event)" @dblclick="$store.pdfp.resetHeight()"
+             @keydown.arrow-up.prevent="$store.pdfp.nudgeHeight(-24)" @keydown.arrow-down.prevent="$store.pdfp.nudgeHeight(24)"></div>
+      </section>
+
+      <div class="ide-editor-body">
+        <div class="ide-empty ide-editor-empty" x-show="!$store.ide.center.fileId && !$store.ide.center.loading">
+          Select a file on the left to open it, or upload one.
+        </div>
+        <div class="ide-loading" x-show="$store.ide.center.loading" x-cloak>Loading…</div>
+        <div class="ide-editor-error" x-show="$store.ide.center.error" x-text="$store.ide.center.error" x-cloak></div>
+
+        <!-- editable source/text → CodeMirror 6 (the host is mounted once; x-show toggles it) -->
+        <div class="ide-cm-host" x-cm-editor="$store.ide.center"
+             x-show="$store.ide.center.fileId && $store.ide.center.editable && !$store.ide.center.error" x-cloak></div>
+
+        <!-- image → inline preview (src is our own same-origin download endpoint) -->
+        <div class="ide-image-host" x-show="$store.ide.center.fileId && $store.ide.center.isImage && !$store.ide.center.error" x-cloak>
+          <img :src="$store.ide.center.imageUrl" :alt="$store.ide.center.name">
+        </div>
+
+        <!-- other non-editable (pdf/binary/too-large) → read-only note -->
+        <div class="ide-code-host"
+             x-show="$store.ide.center.fileId && !$store.ide.center.editable && !$store.ide.center.isImage && !$store.ide.center.error" x-cloak
+             x-rich="{ html: $store.ide.center.viewerHtml }"></div>
+
+        <!-- Run-output overlay: covers the code area only (the toolbar and input bar stay
+             usable, so you can re-run without closing it). Auto-opens after each run;
+             ✕ or Esc closes it; the Output button in the bottom bar reopens it. -->
+        <div class="ide-output-overlay" x-show="$store.ide.outputOpen && $store.ide.run" x-cloak
+             role="dialog" aria-label="Run output"
+             @keydown.escape.window="$store.ide.outputOpen && !$store.ide.stdinOpen && !$store.ide.helpOpen
+                                     && !$store.ide.confirmOpen && ($store.ide.outputOpen = false)">
+          <div class="ide-output-head">
+            <span>Output</span>
+            <div class="ide-output-tools">
+              <label class="ide-output-wrap" title="Wrap long lines (turn off for line-sensitive output like tables)">
+                <input type="checkbox" x-model="$store.ide.outputWrap"> wrap
+              </label>
+              <button class="ide-icon-btn" type="button" title="Copy output to clipboard" @click="$store.ide.copyOutput()">📋 Copy</button>
+              <button class="ide-output-close" type="button" title="Close (Esc) — reopen with the Output button" @click="$store.ide.outputOpen = false">✕</button>
+            </div>
+          </div>
+          <pre class="ide-output" :class="{ nowrap: !$store.ide.outputWrap }" x-text="$store.ide.runText()"></pre>
+        </div>
+      </div>
+
+      <!-- ═══ Shell pane (IDLE-style): live output + type answers to input() / scanf / Scanner right here.
+           Logic: static/js/pages/deep/shell.js ($store.shell) · backend: lt_live.py ═══ -->
+      <section class="ide-shell" x-show="!$store.ide.sessionClosed" x-cloak aria-label="Shell"
+               :style="$store.shell.open ? `height:${$store.shell.height}px` : ''">
+        <div class="ide-shell-grip" x-show="$store.shell.open" role="separator" aria-orientation="horizontal"
+             title="Drag to resize" @pointerdown="$store.shell.startResize($event)"></div>
+        <div class="ide-shell-bar">
+          <span class="ide-shell-dot" :class="$store.shell.statusClass"></span>
+          <strong>Shell</strong>
+          <span class="ide-shell-status" x-text="$store.shell.status"></span>
+          <div class="ide-shell-tools">
+            <button class="ide-icon-btn" type="button" x-show="$store.shell.running" x-cloak @click="$store.shell.stop()">■ Stop</button>
+            <button class="ide-icon-btn" type="button" x-show="$store.shell.isPython" x-cloak
+                    title="Open a Python shell (&gt;&gt;&gt;) that can import your files" @click="$store.shell.startRepl('python')">Python shell</button>
+            <button class="ide-icon-btn" type="button" x-show="$store.shell.isJava" x-cloak
+                    title="Open a Java shell (jshell) with your classes available" @click="$store.shell.startRepl('java')">Java shell</button>
+            <button class="ide-icon-btn" type="button" x-show="$store.shell.lastResult && !$store.shell.lastResult.ok" x-cloak
+                    @click="$store.shell.askTutor()">Ask tutor</button>
+            <button class="ide-icon-btn" type="button" @click="$store.shell.copy()">📋 Copy</button>
+            <button class="ide-icon-btn" type="button" @click="$store.shell.clear()">Clear</button>
+            <button class="ide-icon-btn" type="button" @click="$store.shell.toggle()"
+                    x-text="$store.shell.open ? '▾ Hide' : '▴ Show'">▾ Hide</button>
+          </div>
+        </div>
+        <div class="ide-shell-body" id="shellBody" x-show="$store.shell.open" @click="$store.shell.clickBody()">
+          <span x-show="!$store.shell.text && !$store.shell.running" class="ide-shell-hint">Press ▶ Run (or F5) to run your file here. Keys: Enter send · ↑/↓ history · Ctrl+C interrupt · Ctrl+D end of input · Ctrl+L clear.
+</span><span x-text="$store.shell.text"></span><input class="ide-shell-in" id="shellIn" type="text" spellcheck="false" autocomplete="off"
+                 x-show="$store.shell.running" x-model="$store.shell.input" @keydown="$store.shell.onKey($event)"
+                 aria-label="Type input for the running program">
+        </div>
+      </section>
+
+      <!-- stdin composer overlay: type the program's input one value per line -->
+      <div class="ide-modal" x-show="$store.ide.stdinOpen" x-cloak
+           @click="if ($event.target === $el) $store.ide.closeStdinEditor()"
+           @keydown.escape.window="$store.ide.stdinOpen && !$store.ide.confirmOpen && $store.ide.closeStdinEditor()">
+        <div class="ide-modal-box">
+          <div class="ide-modal-head">
+            <span>Program input (stdin)</span>
+            <button class="ide-icon-btn" type="button" @click="$store.ide.closeStdinEditor()">✕ Done</button>
+          </div>
+          <div class="ide-modal-sub">Each line is sent to your program in order — as if you typed it and pressed Enter.
+            Add one value (or one line) per row. Press Enter in a row to add the next.</div>
+          <div class="ide-stdin-rows">
+            <template x-for="(line, i) in $store.ide.stdinLines" :key="line.id">
+              <div class="ide-stdin-row">
+                <span class="ide-stdin-num" x-text="(i + 1) + '.'"></span>
+                <input type="text" :id="'stdin-row-' + line.id" :value="line.v"
+                       @input="line.v = $event.target.value; $store.ide.syncStdin()"
+                       @keydown.enter.prevent="$store.ide.addStdinLine(line.id)"
+                       :placeholder="'value ' + (i + 1)">
+                <button class="ide-stdin-del" type="button" title="Remove this line" @click="$store.ide.removeStdinLine(line.id)">✕</button>
+              </div>
+            </template>
+          </div>
+          <div class="ide-modal-actions">
+            <button class="ide-icon-btn" type="button" @click="$store.ide.addStdinLine()">+ Add line</button>
+            <button class="ide-icon-btn" type="button" @click="$store.ide.clearStdinLines()">Clear</button>
+            <button class="ide-icon-btn" type="button" :disabled="$store.ide.generating"
+                    title="Read the code and fill in (or adjust) the input it needs"
+                    @click="$store.ide.generateStdin()" x-text="$store.ide.generating ? 'Generating…' : '✨ Generate'">✨ Generate</button>
+            <span style="flex:1"></span>
+            <button class="ide-icon-btn run" type="button" :disabled="$store.ide.generating"
+                    @click="$store.ide.closeStdinEditor(); $store.ide.runFile()">▶ Run with this input</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload duplicate-name overwrite confirm: shown when an upload batch has one or more
+           files that already exist (same folder + name) in this session's file list. Each
+           conflict has its own checkbox: checked → overwrite, unchecked → not uploaded.
+           Deliberately NO close-on-backdrop-click and NO Esc: a stray click or keystroke
+           must not discard the user's per-file choices — only the explicit buttons answer
+           it. (Other overlays' Esc handlers still defer to confirmOpen so Esc does nothing
+           at all while this is up.) -->
+      <div class="ide-modal" x-show="$store.ide.uploadConflictOpen" x-cloak>
+        <div class="ide-modal-box">
+          <div class="ide-modal-head">
+            <span>⚠️ Overwrite existing file<span x-text="$store.ide.uploadConflictItems.length > 1 ? 's' : ''"></span>?</span>
+            <button class="ide-icon-btn" type="button" @click="$store.ide.resolveUploadConflict(false)">✕ Cancel</button>
+          </div>
+          <div class="ide-modal-sub">
+            <span x-show="$store.ide.uploadConflictItems.length === 1">A file with this name already exists in this session. Overwriting replaces its current content — this cannot be undone.</span>
+            <span x-show="$store.ide.uploadConflictItems.length > 1">These files already exist in this session. Checked files will replace the existing copy — this cannot be undone; unchecked files will not be uploaded.</span>
+          </div>
+          <ul class="ide-conflict-list">
+            <template x-for="it in $store.ide.uploadConflictItems" :key="it.i">
+              <li><label><input type="checkbox" x-model="it.checked"> <span x-text="it.label"></span></label></li>
+            </template>
+          </ul>
+          <div class="ide-modal-actions">
+            <span style="flex:1"></span>
+            <button class="ide-icon-btn" type="button" @click="$store.ide.resolveUploadConflict(false)">Skip all (keep existing)</button>
+            <button class="ide-icon-btn run" type="button"
+                    :disabled="!$store.ide.uploadConflictItems.some(x => x.checked)"
+                    @click="$store.ide.resolveUploadConflict(true)"
+                    x-text="'Overwrite selected (' + $store.ide.uploadConflictItems.filter(x => x.checked).length + ')'"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete-file confirm (in-page overlay — same convention as the overwrite confirm) -->
+      <div class="ide-modal" x-show="$store.ide.deleteAsk.open" x-cloak
+           @click="if ($event.target === $el) $store.ide.cancelDelete()"
+           @keydown.escape.window="$store.ide.deleteAsk.open && $store.ide.cancelDelete()">
+        <div class="ide-modal-box">
+          <div class="ide-modal-head">
+            <span>🗑 Delete file?</span>
+            <button class="ide-icon-btn" type="button" @click="$store.ide.cancelDelete()">✕ Cancel</button>
+          </div>
+          <div class="ide-modal-sub">
+            Delete “<span x-text="$store.ide.deleteAsk.name || 'this file'"></span>”? This cannot be undone.
+          </div>
+          <div class="ide-modal-actions">
+            <span style="flex:1"></span>
+            <button class="ide-icon-btn" type="button" @click="$store.ide.cancelDelete()">Cancel</button>
+            <button class="ide-icon-btn danger" type="button" @click="$store.ide.confirmDelete()">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom bar: toggles the run-output overlay above. Closing the overlay keeps the
+           result, so it can always be reopened from here. (The auto-repair diff is NOT
+           shown in the output — feedRunToChat pushes it into the tutor chat instead.) -->
+      <div class="ide-output-bar" x-show="$store.ide.run" x-cloak>
+        <button class="ide-output-btn" type="button" :class="{ open: $store.ide.outputOpen }"
+                title="Show the result of the last run" @click="$store.ide.outputOpen = !$store.ide.outputOpen">
+          <span :class="$store.ide.run && $store.ide.run.ok ? 'ok' : 'err'" x-text="$store.ide.run && $store.ide.run.ok ? '✓' : '✗'"></span>
+          <span>Output</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- RIGHT: tutor chat (same backend as the in-page tutor) -->
+    <section class="ide-chat" aria-label="Tutor chat">
+      <!-- slim rail: always visible (NotebookLM style). Expand / collapse on top, LeafTutor's own actions below.
+           The actions expand the panel first so the chat, the help overlay and the composer are visible.
+           The expand button's icon is filled in by panes.js; styling is in deep_panes.css. -->
+      <div class="ide-rail" data-pane="chat">
+        <button type="button" class="ide-rail-btn ide-rail-expand" data-pane="chat"
+                @click="$store.panes.toggle('chat')"></button>
+        <div class="ide-rail-actions">
+          <span class="ide-rail-sep" aria-hidden="true"></span>
+          <button type="button" class="ide-rail-btn" x-show="!$store.ide.sessionClosed" x-cloak
+                  title="Ask the tutor" aria-label="Ask the tutor"
+                  @click="$store.panes.show('chat'); $nextTick(() => { const t = document.getElementById('ideUserInput'); if (t) t.focus(); })"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4z"/><path d="M8 8h8M8 11h5"/></svg></button>
+          <button type="button" class="ide-rail-btn" title="Switch back to Conversation mode" aria-label="Conversation mode"
+                  @click="$store.panes.show('chat'); $store.ide.switchToConversation()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.5A8 8 0 1 1 21 12z"/></svg></button>
+          <button type="button" class="ide-rail-btn" x-show="!$store.ide.sessionClosed" x-cloak
+                  :class="{ done: $store.ide.helpFlagged }"
+                  :title="$store.ide.helpFlagged ? 'Instructor notified' : 'Still stuck? Flag this session for your instructor'"
+                  :aria-label="$store.ide.helpFlagged ? 'Instructor notified' : 'Instructor help'"
+                  @click="$store.panes.show('chat'); $store.ide.flagHelp()">
+            <span x-show="!$store.ide.helpFlagged"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></span>
+            <span x-show="$store.ide.helpFlagged" x-cloak><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></svg></span>
+          </button>
+        </div>
+      </div>
+      <div class="ide-pane-head">
+        <span class="ide-pane-title">Tutor</span>
+        <!-- back to the chat view; also stores conversation as this chat's mode default -->
+        <button type="button" class="ide-help-flag" @click="$store.ide.switchToConversation()"
+                title="Switch back to Conversation mode — this conversation will open there from now on">💬 Conversation</button>
+        <!-- "I'm still stuck" escalation: flags this thread for the instructor (off once closed) -->
+        <button type="button" class="ide-help-flag" x-show="!$store.ide.sessionClosed" @click="$store.ide.flagHelp()"
+                title="Still stuck? Flag this session for your instructor — they'll see the conversation, your files and runs"
+                x-text="$store.ide.helpFlagged ? '✓ Instructor notified' : '🙋 Instructor help'">🙋 Instructor help</button>
+      </div>
+
+      <!-- Instructor-help overlay: optional note before flagging (replaces the browser prompt) -->
+      <div class="ide-modal" x-show="$store.ide.helpOpen" x-cloak
+           @click="if ($event.target === $el) $store.ide.closeHelpFlag()"
+           @keydown.escape.window="$store.ide.helpOpen && !$store.ide.confirmOpen && $store.ide.closeHelpFlag()">
+        <div class="ide-modal-box">
+          <div class="ide-modal-head">
+            <span>🙋 Ask your instructor for help</span>
+            <button class="ide-icon-btn" type="button" @click="$store.ide.closeHelpFlag()">✕ Cancel</button>
+          </div>
+          <div class="ide-modal-sub">This flags the session for your instructor — they'll see the conversation,
+            your files and runs. You can add a note in your own words.</div>
+          <div class="ide-help-note">
+            <textarea id="ideHelpNote" rows="3" placeholder="What are you stuck on? (optional)"
+                      x-model="$store.ide.helpNote"
+                      @keydown.ctrl.enter.prevent="$store.ide.submitHelpFlag()"
+                      @keydown.meta.enter.prevent="$store.ide.submitHelpFlag()"></textarea>
+          </div>
+          <div class="ide-modal-actions">
+            <span style="flex:1"></span>
+            <button class="ide-icon-btn run" type="button" :disabled="$store.ide.helpBusy" @click="$store.ide.submitHelpFlag()"
+                    x-text="$store.ide.helpBusy ? 'Sending…' : 'Notify instructor'">Notify instructor</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ide-messages" id="ideMessages" role="log" aria-live="polite"
+           :class="{ 'chat-closed': $store.ide.sessionClosed }">
+        <template x-for="msg in $store.ide.messages" :key="msg.id">
+          <div>
+            <!-- file marker from a reloaded thread -->
+            <div x-show="msg.kind === 'file'" class="ide-file-marker">
+              <button type="button" class="ide-file-chip" :class="{ code: msg.compilable, disabled: !msg.fileId }"
+                      :title="msg.fileId ? 'Open this file in the viewer' : ''"
+                      @click="msg.fileId && $store.ide.openFile(msg.fileId)">
+                <span x-text="msg.compilable ? '</>' : '📄'"></span>
+                <span x-text="msg.filename || 'file'"></span>
+              </button>
+            </div>
+
+            <!-- student turn -->
+            <div x-show="msg.kind === 'user'" class="ide-msg user">
+              <div class="ide-msg-content" x-text="msg.content"></div>
+            </div>
+
+            <!-- transient action line: what the IDE is doing right now (compile /
+                 apply-fix in flight) — removed when the real result message lands -->
+            <div x-show="msg.kind === 'action'" class="ide-msg action">
+              <div class="ide-action-line"><span class="ide-action-dot"></span><span x-text="msg.content"></span></div>
+            </div>
+
+            <!-- assistant turn -->
+            <div x-show="msg.kind === 'assistant'" class="ide-msg ai" :class="{ failed: msg.failed || msg.netError }">
+              <div class="ide-msg-content" x-rich="{ content: msg.content, html: msg.html }"></div>
+
+              <!-- tutor-proposed fix: ONE card, ONE Apply for all blocks — they form a single
+                   coherent fix (possibly across several files); applying compiles + verifies
+                   internally before returning -->
+              <div class="ide-fix-card" x-show="(msg.edits || []).length">
+                <div class="ide-fix-head" x-text="'Suggested fix' + ((msg.edits || []).length > 1 ? ' — ' + msg.edits.length + ' changes' : '')"></div>
+                <template x-for="(ed, ei) in (msg.edits || [])" :key="ei">
+                  <div>
+                    <!-- ed.target set = the block carried "FILE: <name>": that change lands in
+                         another project file — label it so the student knows where -->
+                    <div class="ide-fix-target" x-show="ed.target" x-text="'in ' + ed.target"></div>
+                    <pre class="ide-fix-diff" x-html="ed.diffHtml"></pre>
+                  </div>
+                </template>
+                <div class="ide-fix-actions" x-show="msg.fix && !msg.fix.applied && !$store.ide.sessionClosed">
+                  <button class="ide-fix-apply" :disabled="msg.fix && msg.fix.busy" @click="$store.ide.applyFix(msg)"
+                          x-text="msg.fix && msg.fix.busy ? (msg.fix.status || 'Applying…') : 'Apply fix'"></button>
+                  <!-- re-anchoring only helps for pre-write (locate) failures; a save-phase
+                       failure is environmental, so the ask-tutor path is hidden there -->
+                  <button class="ide-fix-ask"
+                          x-show="msg.fix && (msg.fix.failures || []).length && !msg.fix.busy && msg.fix.phase !== 'apply'"
+                          @click="$store.ide.askFixUpdate(msg)">Ask tutor to update the fix</button>
+                </div>
+                <div class="ide-fix-note" :class="{ ok: msg.fix && msg.fix.applied }"
+                     x-show="msg.fix && msg.fix.note" x-text="msg.fix && msg.fix.note"></div>
+              </div>
+
+              <!-- retrying re-generates and SAVES a new answer, so it's off on a closed thread -->
+              <div class="ide-retry-bar" x-show="msg.failed && msg.taskId && !$store.ide.sessionClosed">
+                <button class="ide-retry-btn" :disabled="msg.retrying" @click="$store.ide.retryTask(msg)"
+                        x-text="msg.retrying ? 'Retrying…' : '↻ Retry'"></button>
+              </div>
+              <div class="ide-retry-bar" x-show="msg.netError && !$store.ide.sessionClosed">
+                <button class="ide-retry-btn" @click="$store.ide.retryNet(msg)">↻ Retry</button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <div x-show="$store.ide.thinking" class="ide-msg ai" x-cloak>
+          <div class="ide-msg-content"><span class="spinner spinner-sm"></span></div>
+        </div>
+        <div x-show="$store.ide.showWelcome" class="ide-empty">
+          👋 Ask the tutor about your code, or upload a file to discuss. Hints come first — the
+          tutor guides you to the answer rather than handing it over.
+        </div>
+      </div>
+
+      <!-- closed thread: the transcript, files and code stay readable; nothing new can be added -->
+      <div class="session-closed-banner" x-show="$store.ide.sessionClosed" x-cloak role="status">
+        🔒 This conversation has been closed by the instructor. You can read it and your code, but
+        new messages, uploads, edits and code runs are disabled.
+      </div>
+
+      <div class="ide-composer">
+        <textarea id="ideUserInput" rows="1"
+                  :placeholder="$store.ide.sessionClosed ? 'This conversation is closed (view only).' : 'Ask the tutor…  (Enter to send · Shift+Enter for a new line)'"
+                  aria-label="Chat message input"
+                  :disabled="$store.ide.sessionClosed"
+                  x-model="$store.ide.messageText"
+                  x-init="$store.ide.resizeComposer($el)"
+                  @input="$store.ide.resizeComposer($el)"
+                  @keydown="$store.ide.onComposerKey($event)"></textarea>
+        <button class="ide-send-btn" @click="$store.ide.send()" aria-label="Send message" :disabled="$store.ide.sessionClosed">Send →</button>
+      </div>
+    </section>
+
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  /* Deep Coding config (Jinja-injected). The IDE operates on exactly this one thread. */
+  window.DEEP = {
+    session_id:    {{ deep_session_id|tojson }},
+    assignment_id: {{ deep_assignment_id|tojson }},
+    title:         {{ deep_assignment_title|tojson }},
+    cap_bytes:     {{ deep_cap_bytes|tojson }},
+    closed:        {{ (deep_closed or false)|tojson }},
+    chat_url:      {{ deep_chat_url|tojson }}
+  };
+</script>
+<!-- Shared safety + fetch + Alpine bridge, then render helpers, the CodeMirror bundle,
+     the IDE editor directive, then the IDE store. -->
+<script src="{{ static_v('vendor/dompurify/purify.min.js') }}"></script>
+<script src="{{ static_v('js/core/html.js') }}"></script>
+<script src="{{ static_v('js/core/api.js') }}"></script>
+<script src="{{ static_v('js/core/files.js') }}"></script>
+<script src="{{ static_v('js/core/alpine.js') }}"></script>
+<script src="{{ static_v('js/pages/student/render.js') }}"></script>
+<script src="{{ static_v('vendor/codemirror/codemirror.bundle.js') }}"></script>
+<script src="{{ static_v('js/pages/deep/editor.js') }}"></script>
+<script src="{{ static_v('js/pages/deep/store.js') }}"></script>
+
+<!-- Assignment PDF preview. pdf.js is OPTIONAL: copy pdf.min.js + pdf.worker.min.js (pdf.js v3.x UMD
+     build) into static/vendor/pdfjs/ for the custom zoom/page view. Without it (404 here is harmless)
+     the panel falls back to the browser's built-in PDF viewer. -->
+<script src="{{ static_v('vendor/pdfjs/pdf.min.js') }}"></script>
+<script src="{{ static_v('js/pages/deep/pdf_preview.js') }}"></script>
+<script src="{{ static_v('js/pages/deep/panes.js') }}"></script>
+<script src="{{ static_v('js/pages/deep/check.js') }}"></script>
+<!-- IDLE-style live Shell: Run output + typing input() answers (backend: lt_live.py) -->
+<script src="{{ static_v('js/pages/deep/shell.js') }}"></script>
+{% endblock %}
