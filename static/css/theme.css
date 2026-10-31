@@ -1,0 +1,163 @@
+/* ══════════════════════════════════════════════════════════════
+   LeafTutor — theme.css
+   1) Re-colors every page with the login page's sage-green palette.
+   2) Adds accent presets (green / blue / red) selected via
+      <html data-accent="green|blue|red"> (set by accent.js).
+   Load AFTER tokens.css, app.css and customization.css
+   (or paste at the very bottom of customization.css).
+   Everything works by overriding --lt-* tokens, so no component
+   rules need to change. High-contrast mode is left untouched.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ───────── Light (default): login palette + green accent ───────── */
+:root {
+  --lt-bg-layout: #f7f9f7;
+  --lt-bg-container: #ffffff;
+  --lt-bg-elevated: #ffffff;
+
+  --lt-fill: rgba(36, 49, 39, .15);
+  --lt-fill-secondary: rgba(36, 49, 39, .10);
+  --lt-fill-tertiary: rgba(36, 49, 39, .06);
+  --lt-fill-quaternary: rgba(36, 49, 39, .03);
+
+  --lt-text: #243127;
+  --lt-text-secondary: #647067;
+  --lt-text-tertiary: #718076;
+  --lt-text-quaternary: #a3aea5;
+  --lt-text-on-primary: #ffffff;
+
+  --lt-border: #d7ded7;
+  --lt-border-secondary: #e1e6e1;
+
+  --lt-primary: #526b57;
+  --lt-primary-hover: #435948;
+  --lt-primary-active: #364a3b;
+  --lt-primary-bg: #eef4ee;
+  --lt-primary-bg-hover: #e0ebe1;
+  --lt-primary-border: #c9d8cb;
+
+  --lt-shadow: 0 10px 30px rgba(40, 55, 42, .10);
+  --lt-shadow-secondary: 0 1px 2px rgba(40, 55, 42, .06);
+  --lt-shadow-tertiary: 0 1px 2px rgba(40, 55, 42, .08);
+}
+
+/* ───────── Dark (default green accent, sage-tinted surfaces) ───────── */
+html[data-theme="dark"]:not(.high-contrast) {
+  --lt-bg-layout: #121712;
+  --lt-bg-container: #1a211b;
+  --lt-bg-elevated: #212922;
+
+  --lt-border: #3a443c;
+  --lt-border-secondary: #2b332c;
+
+  --lt-primary: #4d8a5a;
+  --lt-primary-hover: #65a373;
+  --lt-primary-active: #8fc79b;
+  --lt-primary-bg: #1c2a1f;
+  --lt-primary-bg-hover: #243628;
+  --lt-primary-border: #36523b;
+}
+
+/* ───────── Accent: BLUE ───────── */
+html[data-accent="blue"]:not(.high-contrast) {
+  --lt-primary: #2b6cb0;
+  --lt-primary-hover: #235a96;
+  --lt-primary-active: #1c4a7a;
+  --lt-primary-bg: #eaf2fb;
+  --lt-primary-bg-hover: #dbe8f7;
+  --lt-primary-border: #bcd3ee;
+}
+html[data-theme="dark"][data-accent="blue"]:not(.high-contrast) {
+  --lt-primary: #3c7fd6;
+  --lt-primary-hover: #5b9bf0;
+  --lt-primary-active: #8db9f5;
+  --lt-primary-bg: #14233a;
+  --lt-primary-bg-hover: #1a3358;
+  --lt-primary-border: #234a7d;
+}
+
+/* ───────── Accent: RED ───────── */
+html[data-accent="red"]:not(.high-contrast) {
+  --lt-primary: #b83a3a;
+  --lt-primary-hover: #9c2f2f;
+  --lt-primary-active: #7f2525;
+  --lt-primary-bg: #fbeeee;
+  --lt-primary-bg-hover: #f6dddd;
+  --lt-primary-border: #ecc3c3;
+}
+html[data-theme="dark"][data-accent="red"]:not(.high-contrast) {
+  --lt-primary: #d0453f;
+  --lt-primary-hover: #e5675f;
+  --lt-primary-active: #f09a94;
+  --lt-primary-bg: #2d1a1a;
+  --lt-primary-bg-hover: #402323;
+  --lt-primary-border: #6a2f2d;
+}
+/* (green needs no block: it is the default above) */
+
+/* ───────── Accent swatches in the customization panel ───────── */
+.accent-swatches {
+  display: flex;
+  gap: 10px;
+}
+
+.accent-swatch {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid var(--lt-border);
+  box-shadow: none;
+}
+
+.accent-swatch[data-accent="green"] { background: #526b57; }
+.accent-swatch[data-accent="blue"]  { background: #2b6cb0; }
+.accent-swatch[data-accent="red"]   { background: #b83a3a; }
+
+.accent-swatch[aria-pressed="true"] {
+  border-color: var(--lt-bg-container);
+  box-shadow: 0 0 0 2px var(--lt-primary);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Background presets: green / blue / red  (replace cream / mint / sky)
+   data-bg="default" = login-page sage (from :root above); "neutral" is unchanged.
+   ══════════════════════════════════════════════════════════════ */
+html[data-theme="light"][data-bg="green"]:not(.high-contrast) {
+  --lt-bg-layout: #e3efe5;
+  --lt-bg-container: #f3f9f4;
+  --lt-bg-elevated: #fbfefb;
+}
+html[data-theme="light"][data-bg="blue"]:not(.high-contrast) {
+  --lt-bg-layout: #dde9f6;
+  --lt-bg-container: #f1f6fc;
+  --lt-bg-elevated: #fafcff;
+}
+html[data-theme="light"][data-bg="red"]:not(.high-contrast) {
+  --lt-bg-layout: #f6e1e1;
+  --lt-bg-container: #fcf1f1;
+  --lt-bg-elevated: #fff9f9;
+}
+
+html[data-theme="dark"][data-bg="green"]:not(.high-contrast) {
+  --lt-bg-layout: #0f1a12;
+  --lt-bg-container: #16231a;
+  --lt-bg-elevated: #1c2b20;
+}
+html[data-theme="dark"][data-bg="blue"]:not(.high-contrast) {
+  --lt-bg-layout: #0f1620;
+  --lt-bg-container: #162030;
+  --lt-bg-elevated: #1c283b;
+}
+html[data-theme="dark"][data-bg="red"]:not(.high-contrast) {
+  --lt-bg-layout: #1c1112;
+  --lt-bg-container: #271819;
+  --lt-bg-elevated: #301e1f;
+}
+
+/* Swatch previews (light variants, like the originals) */
+.bg-swatch[data-bg="default"] { background: #f7f9f7; }
+.bg-swatch[data-bg="green"]   { background: #cfe6d4; }
+.bg-swatch[data-bg="blue"]    { background: #cfe0f3; }
+.bg-swatch[data-bg="red"]     { background: #f3d4d4; }

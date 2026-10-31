@@ -1,0 +1,142 @@
+/* Deep Coding — Files and Tutor panels with an always-visible slim rail (see js/pages/deep/panes.js).
+   The rail is NotebookLM-style: a column of round icon buttons. The expand / collapse button is on top,
+   LeafTutor's own actions (new file, upload, ask the tutor, ...) sit below it. Its markup is in ide.html.
+   Open:      the rail sits on the panel's outer edge and the panel reserves room for it.
+   Collapsed: the panel shrinks to the rail alone; its buttons expand it again. */
+
+:root { --ide-rail-w: 52px; }
+
+/* ── panels reserve room for the rail while open ───────────────────────── */
+.ide-files,
+.ide-chat { position: relative; box-sizing: border-box; }
+.ide-files { padding-left: var(--ide-rail-w); }    /* rail on the left edge  */
+.ide-chat  { padding-right: var(--ide-rail-w); }   /* rail on the right edge */
+
+/* ── the rail: always visible ──────────────────────────────────────────── */
+.ide-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--ide-rail-w);
+  padding: 12px 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: none;
+  background: var(--lt-bg-container);
+  color: var(--lt-text-tertiary);
+  user-select: none;
+  z-index: 2;
+}
+.ide-rail::-webkit-scrollbar { display: none; }
+.ide-files > .ide-rail { left: 0;  border-right: 1px solid rgba(127,127,127,.22); }
+.ide-chat  > .ide-rail { right: 0; border-left:  1px solid rgba(127,127,127,.22); }
+
+/* the group of LeafTutor action buttons under the expand button */
+.ide-rail-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.ide-rail-sep {
+  width: 24px;
+  height: 1px;
+  margin: 4px 0;
+  background: rgba(127,127,127,.28);
+}
+
+/* round icon buttons inside the rail */
+.ide-rail-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.ide-rail-btn svg { display: block; }
+.ide-rail-btn:hover,
+.ide-rail-btn:focus-visible {
+  background: var(--lt-primary-bg);
+  color: var(--lt-text);
+  outline: none;
+}
+.ide-rail-btn:focus-visible { box-shadow: 0 0 0 2px currentColor; }
+.ide-rail-btn:disabled { opacity: .45; cursor: default; }
+.ide-rail-btn.done { color: var(--lt-primary, currentColor); }    /* e.g. "Instructor notified" */
+
+/* the Tutor panel sits on the right, so mirror its expand icon */
+.ide-rail-expand[data-pane="chat"] svg { transform: scaleX(-1); }
+
+/* ── collapsed: panel becomes just the rail ────────────────────────────── */
+.ide-root.ide-files-hidden > .ide-files,
+.ide-root.ide-chat-hidden > .ide-chat {
+  width: var(--ide-rail-w) !important;
+  min-width: var(--ide-rail-w) !important;
+  max-width: var(--ide-rail-w) !important;
+  flex: 0 0 var(--ide-rail-w) !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+/* hide everything in the panel except the rail */
+.ide-root.ide-files-hidden > .ide-files > *:not(.ide-rail),
+.ide-root.ide-chat-hidden > .ide-chat > *:not(.ide-rail) { display: none !important; }
+
+/* the rail fills the collapsed strip */
+.ide-root.ide-files-hidden > .ide-files > .ide-rail,
+.ide-root.ide-chat-hidden > .ide-chat > .ide-rail {
+  position: static;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* the file/editor splitter has nothing to resize while Files is collapsed */
+.ide-root.ide-files-hidden > .ide-splitter { display: none !important; }
+
+/* ── panel headers ─────────────────────────────────────────────────────── */
+.ide-pane-head { display: flex; align-items: center; gap: 8px; }
+
+/* Never clip a header button: if a panel header gets too narrow, its buttons wrap onto a second line */
+.ide-files > .ide-pane-head,
+.ide-editor > .ide-pane-head,
+.ide-chat > .ide-pane-head { flex-wrap: wrap; row-gap: 4px; }
+.ide-editor > .ide-pane-head .ide-pane-actions { flex-wrap: wrap; row-gap: 4px; }
+
+/* header collapse button (NotebookLM-style); hidden along with the header while a panel is collapsed */
+.ide-pane-collapse {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: .7;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.ide-pane-collapse:hover,
+.ide-pane-collapse:focus-visible { background: rgba(127,127,127,.18); opacity: 1; outline: none; }
+.ide-files .ide-pane-collapse { margin-left: auto; }                          /* pushed to the right end */
+.ide-chat  .ide-pane-collapse { margin-right: 4px; transform: scaleX(-1); }   /* mirrored for the right-hand panel */
+
+/* editor-header view toggles show an "on" state */
+.ide-icon-btn.active { background: var(--lt-primary-bg); }

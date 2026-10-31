@@ -1,0 +1,130 @@
+/* Deep Coding — assignment PDF preview panel (docked above the code editor).
+   Uses the LeafTutor design tokens so it follows the dark theme / text-size settings. */
+
+.ide-pdf {
+  flex: 0 0 auto;                       /* height comes from the inline style (drag-resizable) */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  background: var(--lt-bg-container);
+  border-bottom: 1px solid var(--lt-border);
+}
+
+.ide-pdf-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--lt-bg-elevated);
+  border-bottom: 1px solid var(--lt-border);
+  flex-wrap: wrap;
+}
+.ide-pdf-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lt-text);
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ide-pdf-select {
+  font-size: 12px;
+  max-width: 40%;
+  padding: 3px 6px;
+  border: 1px solid var(--lt-border);
+  border-radius: 6px;
+  background: var(--lt-bg-elevated);
+  color: var(--lt-text);
+}
+.ide-pdf-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ide-pdf-group { display: inline-flex; align-items: center; gap: 4px; }
+.ide-pdf-zoom {
+  min-width: 46px;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lt-text);
+}
+.ide-pdf-page-input {
+  width: 48px;
+  font-size: 12px;
+  text-align: center;
+  padding: 2px 4px;
+  border: 1px solid var(--lt-border);
+  border-radius: 6px;
+  background: var(--lt-bg-elevated);
+  color: var(--lt-text);
+}
+.ide-pdf-pages-total { font-size: 12px; color: var(--lt-text-tertiary); }
+
+/* the toolbar buttons reuse .ide-icon-btn; add an "on" state and make <a> look the same */
+.ide-icon-btn.active { background: var(--lt-primary-bg); }
+a.ide-icon-btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+.ide-pdf-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  padding: 10px 0;
+  background: var(--lt-fill-quaternary, var(--lt-bg-container));
+  outline: none;
+}
+.ide-pdf-pages {
+  position: relative;                   /* page offsetTop is measured against this */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;              /* wide zoom levels scroll horizontally instead of clipping */
+  width: max-content;
+  min-width: 100%;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+.ide-pdf-pages.native { width: 100%; height: 100%; padding: 0; }
+
+.ide-pdf-page {
+  flex: 0 0 auto;
+  margin: 0 auto 10px;
+  background: #fff;                     /* PDF pages are white in both themes */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+}
+.ide-pdf-page canvas { display: block; }
+
+.ide-pdf-native { width: 100%; height: 100%; border: 0; background: #fff; }
+
+.ide-pdf-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--lt-text-tertiary);
+  pointer-events: none;
+}
+.ide-pdf-status.error { color: var(--lt-danger, #d93025); }
+
+/* drag handle between the preview and the editor */
+.ide-pdf-resizer {
+  position: absolute;
+  left: 0; right: 0; bottom: -3px;
+  height: 7px;
+  cursor: row-resize;
+  z-index: 5;
+}
+.ide-pdf-resizer:hover,
+.ide-pdf-resizer:focus-visible { background: var(--lt-primary-bg); outline: none; }
+
+/* while dragging: keep the pointer on the handle even over the PDF iframe */
+body.ide-pdf-resizing { cursor: row-resize; user-select: none; }
+body.ide-pdf-resizing .ide-pdf-native { pointer-events: none; }

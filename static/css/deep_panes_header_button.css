@@ -1,0 +1,16 @@
+/* Append to deep_panes.css — header collapse button (NotebookLM-style) */
+.ide-pane-head { display: flex; align-items: center; gap: 8px; }
+.ide-pane-collapse {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: transparent; color: inherit; opacity: .7;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.ide-pane-collapse:hover,
+.ide-pane-collapse:focus-visible { background: rgba(127,127,127,.18); opacity: 1; outline: none; }
+.ide-files .ide-pane-collapse { margin-left: auto; }            /* pushed to the right end */
+.ide-chat  .ide-pane-collapse { margin-right: 4px; transform: scaleX(-1); } /* mirrored for the right-hand panel */
+/* the header is hidden while a panel is collapsed, so the rail takes over */
