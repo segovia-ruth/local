@@ -284,6 +284,68 @@ html.course-mode #rosterAssignSplit {
   }
 }
 
+/*
+ * PURPOSE: Assignment cards replace the "Choose an assignment" dropdown.
+ * REASON: Instructors can see due date, draft/published and past-due state
+ * for every assignment at a glance. Remove the next rule to bring the
+ * dropdown back.
+ */
+/* Keep the picker in the grid (course_split.js puts it in row 1) but collapse it to
+   nothing, so Files | Tutoring | Conversations still sit in row 2 and fill the height. */
+.course-mode .lt-asn-picker {
+  visibility: hidden; height: 0; margin: 0 0 -12px; padding: 0; border: 0; overflow: hidden;
+}
+
+/* The assignment list now sits above the three columns, so the columns take
+   whatever height is left instead of a full 100% (which pushed them down). */
+html.course-mode.cv-assignments #rosterAssignSplit.lt-split {
+  height: auto !important; flex: 1 1 0 !important; min-height: 420px;
+}
+html.course-mode.cv-assignments #assignSection { height: auto !important; align-self: stretch; }
+
+.asn-card-list {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 0 0; max-height: 240px; overflow-y: auto;
+}
+/* one slim row per assignment: title | due | files | status */
+.asn-card {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  padding: 7px 12px; font-size: 13px; font-weight: 400;
+  background: transparent; color: var(--lt-text);
+  border: 1px solid transparent; border-left: 3px solid transparent;
+  border-radius: var(--lt-radius);
+}
+.asn-card:hover { background: var(--lt-fill-tertiary); color: var(--lt-text); }
+.asn-card.selected {
+  background: var(--lt-primary-bg); border-color: var(--lt-primary-border);
+  border-left-color: var(--lt-primary);
+}
+.asn-card.past .asn-card-title,
+.asn-card.past .asn-card-due { opacity: .55; }
+.asn-card-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asn-card-due, .asn-card-files { font-size: 12px; color: var(--lt-text-tertiary); white-space: nowrap; }
+.asn-card-due { min-width: 150px; }
+.asn-card-files { min-width: 56px; text-align: right; }
+.asn-past-tag { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--lt-warning-text); }
+.asn-rows { display: flex; flex-direction: column; gap: 4px; }
+.asn-current-bar { display: flex; align-items: center; gap: 14px; padding: 2px 3px; font-size: 13px; }
+.asn-list-head {
+  display: flex; align-items: center; gap: 14px; padding: 0 15px 2px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--lt-text-tertiary);
+}
+.asn-list-head span:first-child { flex: 1; }
+.asn-badge {
+  font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; min-width: 74px; text-align: center;
+  border: 1px solid var(--lt-success-border); background: var(--lt-success-bg); color: var(--lt-text);
+}
+.asn-badge.draft { border-color: var(--lt-warning-border); background: var(--lt-warning-bg); color: var(--lt-warning-text); }
+.panel h2.asn-head-collapsed { margin: 0; padding: 0; border: 0; }
+.asn-status-pub  { color: var(--lt-success); }
+.asn-status-draft { color: var(--lt-warning-text); }
+.asn-due-edit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; color: var(--lt-text-secondary); }
+.asn-due-edit input { padding: 4px 8px; font-size: 13px; }
+
 
 </style>
 
@@ -475,9 +537,16 @@ html.course-mode #rosterAssignSplit {
         and request.args.get('view', 'assignments') == 'assignments' %}
 
   <section class="panel course-create-assignment"
-           aria-label="Create Assignment">
+           aria-label="Create Assignment" x-data="{ open: false }">
 
-    <h2>Create Assignment</h2>
+    <h2 style="display:flex;justify-content:space-between;align-items:center;gap:12px;"
+        :class="{ 'asn-head-collapsed': !open }">
+      <span>Assignments</span>
+      <button type="button" class="btn small" @click="open = !open" :aria-expanded="open"
+              x-text="open ? 'Cancel' : '+ New assignment'">+ New assignment</button>
+    </h2>
+
+    <div x-show="open" x-cloak>
 
     <!--
       PURPOSE: Match the Overview assignment form.
@@ -518,6 +587,58 @@ html.course-mode #rosterAssignSplit {
          style="margin-top:8px;min-height:1.2em;"
          aria-live="polite"></div>
 
+    </div><!-- /x-show open -->
+
+          <!-- Assignment cards: pick an assignment (due date, draft/published, past due) -->
+          <div class="asn-card-list" x-show="$store.inst.currentClassId" x-cloak
+               x-data="{
+                 expanded: false,
+                 items() { return this.$store.inst.assignments || []; },
+                 cur() { return this.items().find(a => a.id === this.$store.inst.currentAsnId) || null; },
+                 showList() { return !this.$store.inst.currentAsnId || this.expanded; },
+                 isPast(a) {
+                   if (!a.due_date) return false;
+                   return new Date(a.due_date + 'T' + (a.due_time || '23:59')) < new Date();
+                 },
+                 dueLabel(a) {
+                   if (!a.due_date) return 'No due date';
+                   const [y, m, d] = a.due_date.split('-').map(Number);
+                   let t = new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                   if (a.due_time) {
+                     const [hh, mm] = a.due_time.split(':').map(Number);
+                     t += ', ' + new Date(2000, 0, 1, hh, mm).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+                   }
+                   return t;
+                 },
+                 files(a) { const n = a.file_count || 0; return n + (n === 1 ? ' file' : ' files'); }
+               }">
+            <!-- Collapsed: one line showing the selected assignment -->
+            <div class="asn-current-bar" x-show="!showList() && cur()">
+              <span class="asn-card-title" x-text="cur() && cur().title"></span>
+              <span class="asn-card-due"><span x-text="cur() && dueLabel(cur())"></span><span class="asn-past-tag" x-show="cur() && isPast(cur())">Past due</span></span>
+              <span class="asn-badge" :class="{ draft: cur() && !cur().active }" x-text="cur() && cur().active ? 'Published' : 'Draft'"></span>
+              <button type="button" class="btn-ghost small" @click="expanded = true">Change ▾</button>
+            </div>
+
+            <!-- Expanded: all assignments (shown when none is selected, or after Change) -->
+            <div class="asn-rows" x-show="showList()">
+            <div class="asn-list-head" x-show="items().length">
+              <span>Assignment</span><span style="min-width:150px">Due</span><span style="min-width:56px;text-align:right">Files</span><span style="min-width:74px;text-align:center">Status</span>
+              <button type="button" class="btn-ghost small" x-show="$store.inst.currentAsnId" @click="expanded = false" style="margin-left:6px">Hide ▴</button>
+            </div>
+            <template x-for="a in items()" :key="a.id">
+              <button type="button" class="asn-card"
+                      :class="{ selected: a.id === $store.inst.currentAsnId, past: isPast(a) }"
+                      @click="$store.inst.openAssignmentInstructor(a.id); expanded = false">
+                <span class="asn-card-title" x-text="a.title"></span>
+                <span class="asn-card-due"><span x-text="dueLabel(a)"></span><span class="asn-past-tag" x-show="isPast(a)">Past due</span></span>
+                <span class="asn-card-files" x-text="files(a)"></span>
+                <span class="asn-badge" :class="{ draft: !a.active }" x-text="a.active ? 'Published' : 'Draft'"></span>
+              </button>
+            </template>
+            <div class="muted" x-show="!items().length">No assignments yet. Use “+ New assignment” above.</div>
+            </div><!-- /asn-rows -->
+          </div>
   </section>
 
 
@@ -645,17 +766,17 @@ html.course-mode #rosterAssignSplit {
 
         <!-- Assignments -->
         <section class="card" id="assignSection" aria-label="Assignment">
-          <!-- Tab bar: Assignment Files | Tutoring | Audit -->
+          <!-- Tab bar: Files | Tutoring | Conversations -->
           <div class="asn-tab-bar">
-            <button class="asn-tab" :class="{ active: $store.inst.asnTab === 'files' }" @click="$store.inst.switchAsnTab('files')">Assignment Files</button>
+            <button class="asn-tab" :class="{ active: $store.inst.asnTab === 'files' }" @click="$store.inst.switchAsnTab('files')">Files</button>
             <button class="asn-tab" :class="{ active: $store.inst.asnTab === 'tutoring' }" @click="$store.inst.switchAsnTab('tutoring')">Tutoring</button>
-            <button class="asn-tab" :class="{ active: $store.inst.asnTab === 'audit' }" @click="$store.inst.switchAsnTab('audit')">Audit</button>
+            <button class="asn-tab" :class="{ active: $store.inst.asnTab === 'audit' }" @click="$store.inst.switchAsnTab('audit')">Conversations</button>
           </div>
 
           <!-- ── Tab 1: Assignment Files ── -->
           <div id="asnFilesTabPanel" class="asn-tab-panel" x-show="$store.inst.asnTab === 'files'">
             <div id="asnNoSelect" class="muted" style="padding:28px 16px;text-align:center;" x-show="!$store.inst.currentAsnId">
-              Select an assignment from the sidebar to manage its files.
+              Select an assignment above to manage its files.
             </div>
 
             <div class="card" id="asnFilesCard" x-show="$store.inst.currentAsnId" x-cloak style="display:block;">
@@ -675,9 +796,22 @@ html.course-mode #rosterAssignSplit {
                   </h3>
               
                   <span style="font-size:13px;font-weight:600;"
-                    :style="$store.inst.currentAsn?.active ? 'color:#247347;' : 'color:#9a6700;'"
+                    :class="$store.inst.currentAsn?.active ? 'asn-status-pub' : 'asn-status-draft'"
                     x-text="$store.inst.currentAsn?.active ? 'Published — visible to students' : 'Draft — hidden from students'">
                   </span>
+
+                  <!-- Due date / time (also drives the Calendar for students) -->
+                  <div class="asn-due-edit" x-show="$store.inst.canManageAssignments"
+                       x-data="{ a() { return this.$store.inst.currentAsn || {}; } }">
+                    <label>Due
+                      <input type="date" :value="a().due_date || ''"
+                             @change="$store.inst.setSidebarAsnDue($store.inst.currentClassId, a(), $event.target.value, a().due_time)">
+                    </label>
+                    <label x-show="a().due_date">Time
+                      <input type="time" :value="a().due_time || ''"
+                             @change="$store.inst.setSidebarAsnDue($store.inst.currentClassId, a(), a().due_date, $event.target.value)">
+                    </label>
+                  </div>
                 </div>
               
                 <button type="button" class="btn" x-show="$store.inst.canManageAssignments" @click="$store.inst.toggleSidebarAsnActive(
@@ -690,8 +824,8 @@ html.course-mode #rosterAssignSplit {
               </div>
 
               <div style="margin:6px 0 2px;">
-                <label for="asnRemarks" style="display:block;font-size:12px;color:#6b7280;margin-bottom:3px;">Remarks — AI tutor context for this assignment</label>
-                <textarea id="asnRemarks" rows="2" x-model="$store.inst.remarks" :readonly="!$store.inst.canManageAssignments" style="width:100%;max-width:460px;box-sizing:border-box;resize:vertical;font-size:13px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;" placeholder="e.g. This assignment tests recursion. Students should not use loops."></textarea>
+                <label for="asnRemarks" style="display:block;font-size:12px;color:var(--lt-text-tertiary);margin-bottom:3px;">Remarks — AI tutor context for this assignment</label>
+                <textarea id="asnRemarks" rows="2" x-model="$store.inst.remarks" :readonly="!$store.inst.canManageAssignments" style="width:100%;max-width:460px;box-sizing:border-box;resize:vertical;font-size:13px;padding:6px 8px;border:1px solid var(--lt-border);border-radius:6px;font-family:inherit;" placeholder="e.g. This assignment tests recursion. Students should not use loops."></textarea>
                 <div style="display:flex;gap:8px;align-items:center;margin-top:3px;">
                   <button class="btn small" x-show="$store.inst.canManageAssignments" @click="$store.inst.saveRemarks()">Save Remarks</button>
                   <span id="asnRemarksStatus" class="muted" style="font-size:12px;" x-text="$store.inst.remarksStatus"></span>
@@ -780,7 +914,7 @@ html.course-mode #rosterAssignSplit {
           <!-- ── Tab 2: Tutoring ── -->
           <div id="asnTutoringTabPanel" class="asn-tab-panel" x-show="$store.inst.asnTab === 'tutoring'" x-cloak>
             <div id="asnTutoringNoSelect" class="muted" style="text-align:center;padding:28px 16px;" x-show="!$store.inst.currentAsnId">
-              Select an assignment from the sidebar to start a tutoring chat.
+              Select an assignment above to start a tutoring chat.
             </div>
 
             <div id="asnTutoringBody" x-show="$store.inst.currentAsnId" x-cloak>
@@ -955,7 +1089,7 @@ html.course-mode #rosterAssignSplit {
           <!-- ── Tab 3: Audit (this assignment) ── -->
           <div id="asnAuditTabPanel" class="asn-tab-panel" x-show="$store.inst.asnTab === 'audit'" x-cloak>
             <div id="asnAuditNoSelect" class="muted" style="text-align:center;padding:28px 16px;" x-show="!$store.inst.currentAsnId">
-              Select an assignment from the sidebar to view its conversations.
+              Select an assignment above to view its conversations.
             </div>
             <div id="asnAuditBody" x-show="$store.inst.currentAsnId" x-cloak>
               <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px;">
@@ -1020,13 +1154,13 @@ html.course-mode #rosterAssignSplit {
         <section class="card" id="rosterSection" aria-label="Roster">
           <div class="roster-tab-bar">
             <button class="roster-tab" x-show="!$store.inst.isTA" :class="{ active: $store.inst.rosterTab === 'roster' }" @click="$store.inst.switchRosterTab('roster')">Class Roster</button>
-            <button class="roster-tab" :class="{ active: $store.inst.rosterTab === 'audit' }" @click="$store.inst.switchRosterTab('audit')">Audit</button>
+            <button class="roster-tab" :class="{ active: $store.inst.rosterTab === 'audit' }" @click="$store.inst.switchRosterTab('audit')">Class activity</button>
             <button class="roster-tab" x-show="!$store.inst.isTA" :class="{ active: $store.inst.rosterTab === 'assistant' }" @click="$store.inst.switchRosterTab('assistant')">Assistant</button>
             <div class="muted" id="rosterClassHint" style="margin-left:auto;font-size:12px;align-self:center;" x-text="$store.inst.currentClassId ? $store.inst.currentClassName : 'No class selected'"></div>
             <button class="roster-collapse-btn" id="rosterCollapseToggle" title="Collapse panel" aria-label="Collapse panel" @click="toggleRosterPanel()">→</button>
           </div>
 
-          <div class="roster-collapsed-label" @click="toggleRosterPanel()" title="Expand panel" aria-hidden="true" x-text="$store.inst.isTA ? 'Audit' : 'Roster · Audit · Assistant'">Roster · Audit</div>
+          <div class="roster-collapsed-label" @click="toggleRosterPanel()" title="Expand panel" aria-hidden="true" x-text="$store.inst.isTA ? 'Activity' : 'Roster · Activity · Assistant'">Roster · Audit</div>
 
           <!-- Tab 1: Class Roster -->
           <div id="rosterTabPanel" class="roster-tab-panel" x-show="!$store.inst.isTA && $store.inst.rosterTab === 'roster'">
