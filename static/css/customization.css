@@ -342,6 +342,98 @@ html[data-bg]:not([data-bg="default"]):not(.high-contrast) body {
     background: var(--lt-bg-layout);
 }
 
+/* ---------- Light theme: login-page green primary (matches the Sign in button) ---------- */
+html[data-theme="light"]:not(.high-contrast) {
+    --lt-primary: #526b57;
+    --lt-primary-hover: #435948;
+    --lt-primary-active: #364839;
+    --lt-primary-bg: #E1EDE4;
+    --lt-primary-bg-hover: #C3D8CA;
+    --lt-primary-border: #C3D8CA;
+    --lt-text-on-primary: #ffffff;
+}
+
+/* ---------- Dark theme: login-page green primary (matches the Sign in button) ---------- */
+html[data-theme="dark"]:not(.high-contrast) {
+    --lt-primary: #526b57;
+    --lt-primary-hover: #66836c;
+    --lt-primary-active: #435948;
+    --lt-primary-bg: #1c2a1f;
+    --lt-primary-bg-hover: #24372a;
+    --lt-primary-border: #3a5340;
+    --lt-text-on-primary: #ffffff;
+}
+
+/* ---------- Dark theme: course navigation (sidebar + top bar) ----------
+   pages.css hard-codes a light sage background for the course navigation,
+   which leaves light text on a light surface in dark mode. These rules
+   are more specific than pages.css, so load order doesn't matter. */
+html[data-theme="dark"] .course-sidebar,
+html[data-theme="dark"] .course-horizontal-header,
+html[data-theme="dark"] .course-horizontal-links,
+html[data-theme="dark"] .student-tutor-top-navigation {
+    background: #16211a;
+    color: var(--lt-text);
+}
+
+html[data-theme="dark"] .course-sidebar,
+html[data-theme="dark"] .course-horizontal-links,
+html[data-theme="dark"] .student-course-sidebar-header {
+    border-color: #2a3a2f;
+}
+
+html[data-theme="dark"] .course-sidebar-header strong,
+html[data-theme="dark"] .course-horizontal-header strong {
+    color: var(--lt-text);
+}
+
+html[data-theme="dark"] .course-sidebar-header span,
+html[data-theme="dark"] .course-horizontal-header span {
+    color: var(--lt-text-tertiary);
+}
+
+html[data-theme="dark"] .course-back {
+    color: var(--lt-text-secondary);
+}
+
+html[data-theme="dark"] .course-back:hover {
+    color: var(--lt-text);
+}
+
+html[data-theme="dark"] .course-nav-link {
+    color: var(--lt-text-secondary);
+}
+
+html[data-theme="dark"] .course-nav-link:hover,
+html[data-theme="dark"] .course-nav-link:focus-visible {
+    background: #223329;
+    color: var(--lt-text);
+}
+
+html[data-theme="dark"] .course-nav-link.active,
+html[data-theme="dark"] .course-nav-link.active:hover {
+    background: var(--lt-primary);
+    color: #ffffff;
+}
+
+html[data-theme="dark"] .student-course-toggle {
+    color: var(--lt-text);
+}
+
+html[data-theme="dark"] .student-course-toggle:hover,
+html[data-theme="dark"] .student-course-toggle:focus-visible {
+    background: #223329;
+}
+
+html[data-theme="dark"] .student-tutor-top-navigation .student-tutor-back-link {
+    color: var(--lt-text-secondary);
+}
+
+html[data-theme="dark"] .student-tutor-top-navigation .student-tutor-back-link:hover {
+    background: #223329;
+    color: var(--lt-text);
+}
+
 
 /* ---------- High contrast (forced dark base + hard overrides) ---------- */
 html.high-contrast {
