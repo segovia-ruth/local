@@ -600,3 +600,48 @@ html.focus-ring *:focus-visible {
     outline: 2px solid var(--lt-primary);
     outline-offset: 2px;
 }
+
+/* ---------- Dark theme: code editor matches the tutor chat code blocks ---------- */
+/*
+html[data-theme="dark"] .ide-cm-host .cm-editor {
+    background-color: #1e2538 !important;
+}
+
+html[data-theme="dark"] .ide-cm-host .cm-gutters {
+    background-color: #1a2032 !important;
+    border-right-color: #2a3350 !important;
+}
+*/
+html[data-theme="dark"] .ide-cm-host .cm-activeLine,
+html[data-theme="dark"] .ide-cm-host .cm-activeLineGutter {
+    background-color: rgba(255, 255, 255, .05) !important;
+}
+
+html[data-theme="dark"] .ide-cm-host .cm-content {
+    color: #d6deeb;
+}
+
+/* syntax colors (class names come from your current bundle build) */
+html[data-theme="dark"] .ide-cm-host .cm-content .ͼb {
+    color: #c792ea;
+}
+
+/* public, class, static, void */
+html[data-theme="dark"] .ide-cm-host .cm-content .ͼg {
+    color: #ffcb6b;
+}
+
+/* main, args */
+html[data-theme="dark"] .ide-cm-host .cm-content .ͼi {
+    color: #d6deeb;
+}
+
+/* String */
+html[data-theme="dark"] .ide-cm-host .cm-content .ͼe {
+    color: #c3e88d;
+}
+
+html[data-theme="dark"] .ide-cm-host .cm-content .ͼm {
+    color: #697098;
+    font-style: italic;
+}
