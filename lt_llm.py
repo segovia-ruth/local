@@ -24,13 +24,16 @@ import urllib.error
 import urllib.request
 
 PROVIDER = os.environ.get("LT_LLM", "auto").lower()
-MODEL = os.environ.get("LT_MODEL", "claude-sonnet-5-5")                       # Anthropic model
-LOCAL_URL = os.environ.get("LT_LOCAL_URL", "http://127.0.0.1:11434").rstrip("/")
+# Anthropic model
+MODEL = os.environ.get("LT_MODEL", "claude-sonnet-5-5")
+LOCAL_URL = os.environ.get(
+    "LT_LOCAL_URL", "http://127.0.0.1:11434").rstrip("/")
 LOCAL_MODEL = os.environ.get("LT_LOCAL_MODEL", "qwen2.5-coder:7b")
 LOCAL_API = os.environ.get("LT_LOCAL_API", "ollama").lower()
 NUM_CTX = int(os.environ.get("LT_NUM_CTX", "8192"))
 LOCAL_TIMEOUT = float(os.environ.get("LT_LOCAL_TIMEOUT", "180"))
-MAX_SYSTEM_CHARS = NUM_CTX * 2          # ~4 chars/token -> leave half the window for chat + answer
+# ~4 chars/token -> leave half the window for chat + answer
+MAX_SYSTEM_CHARS = NUM_CTX * 2
 
 _cache = {"t": 0.0, "val": None}
 
@@ -47,7 +50,8 @@ def provider():
 
 def _http(path, payload=None, timeout=5.0):
     req = urllib.request.Request(LOCAL_URL + path, method="POST" if payload is not None else "GET",
-                                 data=json.dumps(payload).encode() if payload is not None else None,
+                                 data=json.dumps(payload).encode(
+                                 ) if payload is not None else None,
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8", "replace") or "{}")
@@ -56,7 +60,8 @@ def _http(path, payload=None, timeout=5.0):
 def _local_status():
     try:
         if LOCAL_API == "ollama":
-            names = [m.get("name", "") for m in _http("/api/tags").get("models", [])]
+            names = [m.get("name", "")
+                     for m in _http("/api/tags").get("models", [])]
             base = LOCAL_MODEL if ":" in LOCAL_MODEL else LOCAL_MODEL + ":latest"
             if base not in names and LOCAL_MODEL not in names:
                 return False, (f"Ollama is running but model '{LOCAL_MODEL}' is not installed. "
@@ -96,7 +101,8 @@ def available():
 
 def _complete_local(system, messages, max_tokens):
     system = (system or "")[:MAX_SYSTEM_CHARS]
-    msgs = ([{"role": "system", "content": system}] if system else []) + list(messages)
+    msgs = ([{"role": "system", "content": system}]
+            if system else []) + list(messages)
     try:
         if LOCAL_API == "ollama":
             d = _http("/api/chat", {"model": LOCAL_MODEL, "messages": msgs, "stream": False, "keep_alive": "30m",
@@ -114,23 +120,29 @@ def _complete_local(system, messages, max_tokens):
         raise LLMUnavailable(f"Could not get an answer from the local model at {LOCAL_URL}: {getattr(e, 'reason', e)}. "
                              "If this is the first request, the model may still be loading; try again.")
     except (KeyError, IndexError, ValueError) as e:
-        raise LLMUnavailable(f"Unexpected reply from the local model server: {e}")
+        raise LLMUnavailable(
+            f"Unexpected reply from the local model server: {e}")
 
 
 def _complete_anthropic(system, messages, max_tokens):
     import anthropic
     try:
         client = anthropic.Anthropic(timeout=60.0)
-        resp = client.messages.create(model=MODEL, max_tokens=max_tokens, system=system, messages=messages)
+        resp = client.messages.create(
+            model=MODEL, max_tokens=max_tokens, system=system, messages=messages)
         return "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
     except anthropic.AuthenticationError:
-        raise LLMUnavailable("Anthropic rejected the API key (401). Check ANTHROPIC_API_KEY.")
+        raise LLMUnavailable(
+            "Anthropic rejected the API key (401). Check ANTHROPIC_API_KEY.")
     except anthropic.NotFoundError:
-        raise LLMUnavailable(f"Model '{MODEL}' was not found for this key. Set LT_MODEL to a model you can use.")
+        raise LLMUnavailable(
+            f"Model '{MODEL}' was not found for this key. Set LT_MODEL to a model you can use.")
     except anthropic.RateLimitError:
-        raise LLMUnavailable("Rate limit or quota reached (429). Try again shortly or check your billing.")
+        raise LLMUnavailable(
+            "Rate limit or quota reached (429). Try again shortly or check your billing.")
     except anthropic.APIConnectionError as e:
-        raise LLMUnavailable(f"Could not reach the Anthropic API (network/proxy/firewall): {e}")
+        raise LLMUnavailable(
+            f"Could not reach the Anthropic API (network/proxy/firewall): {e}")
     except Exception as e:
         raise LLMUnavailable(f"LLM request failed: {e}")
 
@@ -153,7 +165,8 @@ if __name__ == "__main__":
     if ok:
         t0 = time.time()
         try:
-            print("Reply:", complete("Reply in one short sentence.", [{"role": "user", "content": "Say ready."}], 40))
+            print("Reply:", complete("Reply in one short sentence.",
+                  [{"role": "user", "content": "Say ready."}], 40))
             print(f"({time.time() - t0:.1f}s, includes model load on first call)")
         except LLMUnavailable as e:
             print("FAILED:", e)
