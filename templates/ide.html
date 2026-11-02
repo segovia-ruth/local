@@ -12,6 +12,25 @@
 <link rel="stylesheet" href="{{ static_v('css/deep_pdf.css') }}">
 <!-- Collapse the Files and Tutor panels to a slim rail -->
 <link rel="stylesheet" href="{{ static_v('css/deep_panes.css') }}">
+<style>
+  /* Assignment PDF docks to the LEFT of the code editor (side by side) instead of above it. */
+  .ide-split-row { display: flex; flex-direction: row; flex: 1 1 auto; min-height: 0; min-width: 0; }
+  .ide-split-row > .ide-editor-body { flex: 1 1 0; min-width: 0; min-height: 0; }
+  .ide-split-row > .ide-pdf {
+    flex: 0 0 auto;
+    width: 45%;
+    min-width: 220px;
+    max-width: 75%;
+    height: auto !important;          /* overrides the inline height the store sets */
+    resize: horizontal;               /* drag the right edge to change the width */
+    overflow: hidden;
+    border-right: 1px solid var(--border, #444);
+    border-bottom: 0;
+    display: flex; flex-direction: column;
+  }
+  .ide-split-row > .ide-pdf .ide-pdf-body { flex: 1 1 auto; min-height: 0; }
+  .ide-split-row > .ide-pdf .ide-pdf-resizer { display: none; }  /* the old top/bottom height handle */
+</style>
 {% endblock %}
 
 {% block content %}
@@ -182,6 +201,8 @@
       <!-- ═══ NEW: Assignment PDF preview (docked above the editor; zoom, fit, page nav, resize) ═══
            Logic lives in static/js/pages/deep/pdf_preview.js ($store.pdfp). Uses pdf.js when it is
            vendored under static/vendor/pdfjs/, otherwise the browser's built-in PDF viewer. -->
+      <!-- Row wrapper: PDF on the LEFT, code editor on the RIGHT (closes after .ide-editor-body) -->
+      <div class="ide-split-row">
       <section class="ide-pdf" x-show="$store.pdfp && $store.pdfp.open && $store.pdfp.files.length" x-cloak
                :style="`height:${$store.pdfp ? $store.pdfp.height : 320}px`" aria-label="Assignment PDF preview">
         <div class="ide-pdf-bar">
@@ -272,6 +293,7 @@
           <pre class="ide-output" :class="{ nowrap: !$store.ide.outputWrap }" x-text="$store.ide.runText()"></pre>
         </div>
       </div>
+      </div><!-- /.ide-split-row -->
 
       <!-- ═══ Shell pane (IDLE-style): live output + type answers to input() / scanf / Scanner right here.
            Logic: static/js/pages/deep/shell.js ($store.shell) · backend: lt_live.py ═══ -->
