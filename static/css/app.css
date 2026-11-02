@@ -4722,3 +4722,32 @@ html[data-theme="light"] .app-rail .rail-link.active:hover {
     background: #E1EDE4;
     color: #174C3C;
 }
+
+/* ==========================================================
+   LEAFTUTOR MAIN SIDEBAR — DARK THEME (deep green)
+   Slightly lighter/greener than the dark page background 
+   ========================================================== */
+
+html[data-theme="dark"]:not(.high-contrast) .app-rail {
+  background: #1B3A2D;
+  color: #E2F0E7;
+  border-right: 1px solid #2F5A47;
+}
+
+html[data-theme="dark"]:not(.high-contrast) .app-rail .rail-link,
+html[data-theme="dark"]:not(.high-contrast) .app-rail .rail-toggle {
+  color: #C9E0D2;
+}
+
+html[data-theme="dark"]:not(.high-contrast) .app-rail .rail-link:hover,
+html[data-theme="dark"]:not(.high-contrast) .app-rail .rail-link:focus-visible,
+html[data-theme="dark"]:not(.high-contrast) .app-rail .rail-toggle:hover {
+  background: #2A5543;
+  color: #ffffff;
+}
+
+html[data-theme="dark"]:not(.high-contrast) .app-rail .rail-link.active,
+html[data-theme="dark"]:not(.high-contrast) .app-rail .rail-link.active:hover {
+  background: #3E7A5F;
+  color: #ffffff;
+}
