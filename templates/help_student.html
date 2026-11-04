@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Help · LeafTutor{% endblock %}
+{% block navbar_subtitle %}Help{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ static_v('css/pages.css') }}">
+<style>
+  .guide-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; counter-reset: step; }
+  .guide-steps li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; counter-increment: step; }
+  .guide-steps li::before {
+    content: counter(step);
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    background: var(--lt-primary-bg); color: var(--lt-primary);
+    border: 1px solid var(--lt-primary-border);
+  }
+  .guide-steps strong { display: block; color: var(--lt-text); font-weight: 600; }
+  .guide-steps p { margin: 2px 0 0; color: var(--lt-text-secondary); line-height: 1.6; max-width: 70ch; }
+  .tip-list { margin: 8px 0 0; padding-left: 20px; color: var(--lt-text-secondary); line-height: 1.7; max-width: 70ch; }
+  .tip-list li + li { margin-top: 4px; }
+  .tip-list strong { color: var(--lt-text); font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-scroll">
+  <div class="page-inner">
+    <h1 class="page-title">Help</h1>
+    <p class="page-sub">How to use LeafTutor for your courses.</p>
+
+    <section class="panel">
+      <h2>Getting started</h2>
+      <ol class="guide-steps">
+        <li>
+          <div>
+            <strong>Set your password</strong>
+            <p>Your instructor adds you to the course and gives you a password link. Open it, choose a password with at least 8 characters, and save it. The link works once and expires after 7 days.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Sign in</strong>
+            <p>Use your school email address (or username) and your new password.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Open a course</strong>
+            <p>Your courses are on the <a href="/courses">Courses</a> page. Select one to see the assignments your instructor has made available.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Start an assignment</strong>
+            <p>Select an assignment to open its tutoring chat. The tutor uses the materials your instructor added for that assignment.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>Working with the tutor</h2>
+      <p class="prose">The tutor is there to help you understand the assignment, not to replace your own work. Your instructor decides what material each tutor can use, so it may behave a little differently from one assignment to the next.</p>
+      <ul class="tip-list">
+        <li><strong>Try first.</strong> Tell the tutor what you have already tried and where you got stuck.</li>
+        <li><strong>Be specific.</strong> Quote the exact error message, the line you are unsure about, or the part of the instructions you do not follow.</li>
+        <li><strong>Ask one thing at a time.</strong> Short, focused questions get clearer answers than a long list.</li>
+        <li><strong>Share your work.</strong> Select the + button next to the message box, or drag files into the chat, so the tutor can see the code you are working on.</li>
+        <li><strong>Still stuck?</strong> Select Instructor help to flag the chat. Your instructor can then see the conversation and what you tried, and you can add a note in your own words.</li>
+        <li><strong>Check the answer.</strong> The tutor can be wrong. If something does not match your course notes, ask your instructor.</li>
+      </ul>
+    </section>
+
+    <section class="panel">
+      <h2>Where to find things</h2>
+      <dl class="facts">
+        <div><dt>Courses</dt><dd><a href="/courses">Your courses and assignments</a></dd></div>
+        <div><dt>Calendar</dt><dd><a href="/calendar">Due dates for every course</a></dd></div>
+        <div><dt>Account</dt><dd><a href="/account">Your name, email, customize settings and sign out</a></dd></div>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h2>Making the site easier to read</h2>
+      <p class="prose">Open the Customize button in the top bar to change how LeafTutor looks. Your choices are saved in this browser.</p>
+      <ul class="tip-list">
+        <li><strong>Theme, text size and background color</strong> to suit your screen and lighting.</li>
+        <li><strong>High contrast</strong> for stronger text and borders.</li>
+        <li><strong>Reduce motion</strong> to turn off animations.</li>
+        <li><strong>Underline links</strong>, <strong>increase text spacing</strong> and <strong>readable font</strong> for easier reading.</li>
+        <li><strong>Strong focus outline</strong> to see where you are when using the keyboard.</li>
+      </ul>
+    </section>
+
+    <section class="panel">
+      <h2>Who can see my chats</h2>
+      <p class="prose">Your instructor and any teaching assistants for the course can review tutoring chats to see how students are using the tutor and where they need help. Do not share passwords or other personal information in a chat.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Common questions</h2>
+      <div class="faq">
+        <details>
+          <summary>I forgot my password or my link expired</summary>
+          <p class="prose">Ask your instructor for a new password link. Each link can be used once and lasts 7 days.</p>
+        </details>
+        <details>
+          <summary>I cannot sign in</summary>
+          <p class="prose">Check that you are using the same email address your instructor added to the roster, and that Caps Lock is off. If it still fails, ask your instructor to confirm your email and send a new password link.</p>
+        </details>
+        <details>
+          <summary>I do not see my course</summary>
+          <p class="prose">Your instructor may not have turned the course on yet, or your roster entry may be inactive. Ask your instructor to check that you are listed and active.</p>
+        </details>
+        <details>
+          <summary>I do not see an assignment</summary>
+          <p class="prose">You only see assignments your instructor has activated. If one is missing, ask your instructor whether it is ready.</p>
+        </details>
+        <details>
+          <summary>When is something due?</summary>
+          <p class="prose">The due date and time appear under each assignment in your course. The <a href="/calendar">Calendar</a> shows all of them together.</p>
+        </details>
+        <details>
+          <summary>My chat says it is closed</summary>
+          <p class="prose">Your instructor has closed that conversation. You can still read it, but you cannot send messages, upload files or run code in it.</p>
+        </details>
+        <details>
+          <summary>The tutor gave me a confusing or wrong answer</summary>
+          <p class="prose">Rephrase your question and include more detail about what you are trying to do. If the answer still does not match your course materials, check with your instructor.</p>
+        </details>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
