@@ -598,7 +598,8 @@
     title:         {{ deep_assignment_title|tojson }},
     cap_bytes:     {{ deep_cap_bytes|tojson }},
     closed:        {{ (deep_closed or false)|tojson }},
-    chat_url:      {{ deep_chat_url|tojson }}
+    chat_url:      {{ deep_chat_url|tojson }},
+    user_id:       {{ (session.uid or '')|tojson }}
   };
 </script>
 <!-- Shared safety + fetch + Alpine bridge, then render helpers, the CodeMirror bundle,
