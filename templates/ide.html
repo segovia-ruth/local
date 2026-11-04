@@ -12,6 +12,8 @@
 <link rel="stylesheet" href="{{ static_v('css/deep_pdf.css') }}">
 <!-- Collapse the Files and Tutor panels to a slim rail -->
 <link rel="stylesheet" href="{{ static_v('css/deep_panes.css') }}">
+<!-- First-visit guided tour bubble -->
+<link rel="stylesheet" href="{{ static_v('css/deep_tour.css') }}">
 <style>
   /* Assignment PDF docks to the LEFT of the code editor (side by side) instead of above it. */
   .ide-split-row { display: flex; flex-direction: row; flex: 1 1 auto; min-height: 0; min-width: 0; }
@@ -620,4 +622,6 @@
 <script src="{{ static_v('js/pages/deep/check.js') }}"></script>
 <!-- IDLE-style live Shell: Run output + typing input() answers (backend: lt_live.py) -->
 <script src="{{ static_v('js/pages/deep/shell.js') }}"></script>
+<!-- Guided tour (auto-opens once per browser; "? Tour" button reopens it) -->
+<script src="{{ static_v('js/pages/deep/tour.js') }}"></script>
 {% endblock %}
