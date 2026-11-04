@@ -139,14 +139,27 @@
 
 {% if not is_student %}
 <p style="margin-bottom:var(--g);">
-  {#
-  <a class="btn-ghost" style="display:inline-block;padding:8px 16px;border-radius:var(--lt-radius);text-decoration:none;"
-     href="/instructor?class={{ course.id|urlencode }}&view=roster">Roster &amp; audit</a>
-  #}
-  {# <button ... Delete course ...></button> #}
+  <button type="button" id="delCourseBtn" class="btn-ghost"
+          style="padding:8px 16px;border-radius:var(--lt-radius);color:#b91c1c;">Delete course</button>
 </p>
+<script>
+document.getElementById('delCourseBtn').addEventListener('click', async (e) => {
+  if (!confirm('Delete this course?\n\nThis permanently removes the course, its assignments, files, roster and tutoring chats. This cannot be undone.')) return;
+  e.target.disabled = true;
+  const res = await fetch('/api/classes/{{ course.id|urlencode }}', {
+    method: 'DELETE',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) {
+    alert(data.error || 'Could not delete course.');
+    e.target.disabled = false;
+    return;
+  }
+  location.href = '/courses';
+});
+</script>
 {% endif %}
-    
 
 
 

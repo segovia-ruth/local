@@ -610,13 +610,26 @@ html.course-mode.cv-assignments #assignSection { height: auto !important; align-
                    }
                    return t;
                  },
-                 files(a) { const n = a.file_count || 0; return n + (n === 1 ? ' file' : ' files'); }
+                 files(a) { const n = a.file_count || 0; return n + (n === 1 ? ' file' : ' files'); },
+                 async del(a) {
+                  if (!confirm('Delete assignment: ' + a.title + '?\n\nThis permanently removes its files, tutoring chats and links. This cannot be undone.')) return;
+                  const res = await fetch('/api/instructor/assignments/' + encodeURIComponent(a.id), {
+                    method: 'DELETE',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                  });
+                  if (res.ok) location.reload();
+                  else alert('Could not delete assignment.');
+                }
+                 
                }">
             <!-- Collapsed: one line showing the selected assignment -->
             <div class="asn-current-bar" x-show="!showList() && cur()">
               <span class="asn-card-title" x-text="cur() && cur().title"></span>
               <span class="asn-card-due"><span x-text="cur() && dueLabel(cur())"></span><span class="asn-past-tag" x-show="cur() && isPast(cur())">Past due</span></span>
               <span class="asn-badge" :class="{ draft: cur() && !cur().active }" x-text="cur() && cur().active ? 'Published' : 'Draft'"></span>
+              <button type="button" class="btn-ghost small" style="color:#b91c1c;"
+        x-show="cur() && $store.inst.canManageAssignments"
+        @click="del(cur())">Delete</button>
               <button type="button" class="btn-ghost small" @click="expanded = true">Change ▾</button>
             </div>
 
