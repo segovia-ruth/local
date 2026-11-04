@@ -1,0 +1,56 @@
+/* Guided tour bubble for the Deep Coding IDE. Place at static/css/deep_tour.css */
+.lt-tour { position: fixed; inset: 0; z-index: 10000; display: none; }
+.lt-tour.open { display: block; }
+
+/* Spotlight: a transparent box whose huge shadow dims everything else. */
+.lt-tour-spot {
+  position: fixed; border-radius: 8px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .55), 0 0 0 2px #526b57 inset;
+  outline: 2px solid #8fb596;
+  transition: left .2s, top .2s, width .2s, height .2s;
+}
+
+.lt-tour-bubble {
+  position: fixed; width: 300px; max-width: calc(100vw - 24px);
+  background: var(--panel, #fff); color: var(--text, #1d2a21);
+  border: 1px solid var(--border, #d5ddd7); border-radius: 12px;
+  padding: 14px 16px 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  font-size: 14px; line-height: 1.45;
+}
+@media (prefers-color-scheme: dark) {
+  .lt-tour-bubble { background: var(--panel, #232a26); color: var(--text, #e8eee9); border-color: var(--border, #3a453e); }
+}
+[data-theme="dark"] .lt-tour-bubble { background: var(--panel, #232a26); color: var(--text, #e8eee9); border-color: var(--border, #3a453e); }
+
+.lt-tour-title { font-weight: 700; margin: 0 22px 6px 0; }
+.lt-tour-text  { margin-bottom: 12px; }
+.lt-tour-x {
+  position: absolute; top: 8px; right: 8px; border: 0; background: transparent;
+  color: inherit; opacity: .6; cursor: pointer; font-size: 14px; padding: 4px 6px;
+}
+.lt-tour-x:hover { opacity: 1; }
+
+.lt-tour-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lt-tour-dots { display: inline-flex; gap: 5px; }
+.lt-tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .25; }
+.lt-tour-dots i.on { background: #526b57; opacity: 1; }
+.lt-tour-btns { display: inline-flex; gap: 6px; }
+.lt-tour-btns button {
+  border: 1px solid var(--border, #c9d3cc); background: transparent; color: inherit;
+  border-radius: 6px; padding: 5px 11px; cursor: pointer; font-size: 13px;
+}
+.lt-tour-btns .lt-tour-next { background: #526b57; border-color: #526b57; color: #fff; font-weight: 600; }
+.lt-tour-btns .lt-tour-next:hover { filter: brightness(1.1); }
+.lt-tour-btns button:focus-visible { outline: 2px solid #8fb596; outline-offset: 2px; }
+
+/* Arrow (rotated square on the bubble edge facing the target) */
+.lt-tour-arrow {
+  position: absolute; width: 14px; height: 14px; background: inherit;
+  border: 1px solid var(--border, #d5ddd7); transform: rotate(45deg);
+}
+.lt-tour-arrow.right  { left: -8px;  border-right: 0; border-top: 0; }
+.lt-tour-arrow.left   { right: -8px; border-left: 0;  border-bottom: 0; }
+.lt-tour-arrow.bottom { top: -8px;   border-bottom: 0; border-right: 0; }
+.lt-tour-arrow.top    { bottom: -8px; border-top: 0;  border-left: 0; }
+
+@media (prefers-reduced-motion: reduce) { .lt-tour-spot { transition: none; } }
