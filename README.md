@@ -75,6 +75,25 @@ Templates you edit alongside the backend: `templates/student.html` (AI Tutor pag
 * `/student?session=<session_id>` – reopens that exact chat (used by Bookmark, Copy link and QR).
 * `/deep` – Deep Coding IDE.
 
+## Survey analysis
+ 
+The `analysis/` folder holds the survey analysis. It is independent of the Flask app: nothing in the backend imports from it, and you don't need it to run LeafTutor.
+ 
+**About the survey:** Participants were asked about version 1 and version 2 (this verison) of LeafTutor
+ 
+```
+analysis/
+├── data/              # 2 CSV files of survey data
+├── notebook/          # Jupyter notebook (.ipynb) with the analysis
+└── results_figures/   # .png figures exported by the notebook
+```
+ 
+| Folder | Contents |
+|---|---|
+| `data/` | The two survey CSV files. |
+| `notebook/` | The `.ipynb` that loads the CSVs from `data/`, cleans them, runs the analysis and saves the figures. |
+| `results_figures/` | The `.png` figures produced by the notebook. |
+
 ## Notes
 * **Check my code:** the button and results panel were removed from `ide.html`. The backend route
   `POST /api/deep/check_file` (runs the instructor's test files) and `js/pages/deep/check.js` are still in place
